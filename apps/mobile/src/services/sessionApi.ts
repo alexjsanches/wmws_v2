@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/env'
+import { API_BASE_URL_NORMALIZED } from '../config/env'
 import type { ProfileResponse, RefreshMobileResponse, SankhyaLoginResponse } from '../types/api'
 import { extractApiErrorMessage } from '../utils/extractApiErrorMessage'
 
@@ -9,7 +9,7 @@ const JSON_HEADERS: Record<string, string> = {
 }
 
 function joinUrl(path: string) {
-  const base = API_BASE_URL.replace(/\/$/, '')
+  const base = API_BASE_URL_NORMALIZED
   const p = path.startsWith('/') ? path : `/${path}`
   return `${base}${p}`
 }

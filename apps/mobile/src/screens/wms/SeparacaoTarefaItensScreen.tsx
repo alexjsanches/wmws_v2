@@ -1,4 +1,4 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+﻿import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
@@ -13,22 +13,21 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
+import { isDomainError } from '../../application/DomainError'
+import {
+  applySeparacaoItemQtyUseCase,
+  concludeSeparacaoTaskUseCase,
+  loadSeparacaoTaskUseCase,
+} from '../../application/use-cases'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { CurrentItemCard, TaskProgressoCard } from '../../features/wms/taskExecution/TaskCards'
 import { ItemPickerModal, QtyInputModal } from '../../features/wms/taskExecution/TaskModals'
-import { buildDivergencias } from '../../features/wms/taskExecution/domain'
 import { showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
 import { useTaskExecutionFlow } from '../../features/wms/taskExecution/useTaskExecutionFlow'
 import type { HomeStackParamList } from '../../navigation/types'
-import {
-  getSeparacaoTarefaItens,
-  getSeparacaoTarefaResumo,
-  patchSeparacaoItem,
-  postSeparacaoConcluir,
-} from '../../services/wmsApi'
 import type { ItemTarefaWms, SeparacaoTarefaResumo } from '../../types/wms'
 import { formatParceiro } from '../../utils/formatParceiro'
 
@@ -47,12 +46,9 @@ export function SeparacaoTarefaItensScreen({ navigation, route }: Props) {
   const loadItens = useCallback(async () => {
     setError(null)
     try {
-      const [data, cab] = await Promise.all([
-        getSeparacaoTarefaItens(nutarefa),
-        getSeparacaoTarefaResumo(nutarefa).catch(() => null),
-      ])
-      setItems(data)
-      setResumo(cab)
+      const data = await loadSeparacaoTaskUseCase(nutarefa)
+      setItems(data.items)
+      setResumo(data.resumo)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar itens')
       setItems([])
@@ -68,7 +64,7 @@ export function SeparacaoTarefaItensScreen({ navigation, route }: Props) {
 
   const aplicarQuantidade = useCallback(async (item: ItemTarefaWms, qtd: number) => {
     try {
-      await patchSeparacaoItem(nutarefa, item.nuitem, { qtdrealizada: qtd, controle: item.controle })
+      await applySeparacaoItemQtyUseCase({ nutarefa, item, qtd })
       await loadItens()
     } catch (e) {
       showWmsError('Separação', e, 'Erro ao salvar')
@@ -97,20 +93,16 @@ export function SeparacaoTarefaItensScreen({ navigation, route }: Props) {
   })
 
   const confirmarConclusao = async () => {
-    const endereco = enderecoArea.trim()
-    if (!endereco) {
-      Alert.alert('Separação', 'Informe onde os itens foram deixados para conferência.')
-      return
-    }
     try {
-      await postSeparacaoConcluir(nutarefa, {
-        enderecoArea: endereco,
-        divergencias: buildDivergencias(items),
-      })
+      await concludeSeparacaoTaskUseCase({ nutarefa, enderecoArea, items })
       setEnderecoModalOpen(false)
       setEnderecoArea('')
       showWmsSuccess('Separação', 'Tarefa concluída.', () => navigation.goBack())
     } catch (e) {
+      if (isDomainError(e) && e.code === 'SEPARACAO_ENDERECO_REQUIRED') {
+        Alert.alert('Separação', e.message)
+        return
+      }
       showWmsError('Separação', e, 'Erro ao concluir')
     }
   }

@@ -10,18 +10,19 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
+import { isDomainError } from '../../application/DomainError'
+import {
+  assignWmsTaskUseCase,
+  canOpenWmsTaskForUser,
+  loadConferenciaBoardUseCase,
+  unassignWmsTaskUseCase,
+} from '../../application/use-cases'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { useAuth } from '../../context/AuthContext'
 import { showWmsConfirm, showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
 import type { HomeStackParamList } from '../../navigation/types'
-import {
-  getConferenciaPedidosPendentes,
-  getConferenciaTarefasPendentes,
-  postWmsTarefaAtribuir,
-  postWmsTarefaDesatribuir,
-} from '../../services/wmsApi'
 import type { OrdemWmsCab, TarefaWmsLista } from '../../types/wms'
 import { formatDisplayValue } from '../../utils/formatDisplayValue'
 import { formatParceiro } from '../../utils/formatParceiro'
@@ -41,9 +42,9 @@ export function ConferenciaListaScreen({ navigation }: Props) {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [p, t] = await Promise.all([getConferenciaPedidosPendentes(), getConferenciaTarefasPendentes()])
-      setPedidos(p)
-      setTarefas(t)
+      const board = await loadConferenciaBoardUseCase()
+      setPedidos(board.pedidos)
+      setTarefas(board.tarefas)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar')
       setPedidos([])
@@ -59,22 +60,22 @@ export function ConferenciaListaScreen({ navigation }: Props) {
   }, [load])
 
   const atribuirTarefa = async (nutarefa: number) => {
-    if (!codusuAtual) {
-      showWmsError('Conferência', new Error('Usuário sem CODUSU no perfil.'), 'Não foi possível identificar o usuário.')
-      return
-    }
     try {
-      await postWmsTarefaAtribuir(nutarefa, { codusu: codusuAtual })
+      await assignWmsTaskUseCase({ nutarefa, codusuAtual })
       showWmsSuccess('Conferência', `Tarefa #${nutarefa} atribuída a você.`)
       await load()
     } catch (e) {
+      if (isDomainError(e) && e.code === 'WMS_TASK_ASSIGN_USER_REQUIRED') {
+        showWmsError('Conferência', e, 'Não foi possível identificar o usuário.')
+        return
+      }
       showWmsError('Conferência', e, 'Erro ao atribuir tarefa.')
     }
   }
 
   const desatribuirTarefa = async (nutarefa: number) => {
     try {
-      await postWmsTarefaDesatribuir(nutarefa)
+      await unassignWmsTaskUseCase(nutarefa)
       showWmsSuccess('Conferência', `Tarefa #${nutarefa} desatribuída.`)
       await load()
     } catch (e) {
@@ -140,8 +141,7 @@ export function ConferenciaListaScreen({ navigation }: Props) {
             <Card
               key={`t-${t.nutarefa}`}
               onPress={() => {
-                const atribuidaParaOutro = t.codusuAtrib > 0 && t.codusuAtrib !== codusuAtual
-                if (atribuidaParaOutro) {
+                if (!canOpenWmsTaskForUser({ taskOwnerCodusu: t.codusuAtrib, currentCodusu: codusuAtual })) {
                   showWmsError('Conferência', new Error(`Tarefa atribuída ao usuário ${t.codusuAtrib}.`), 'Tarefa atribuída a outro usuário.')
                   return
                 }

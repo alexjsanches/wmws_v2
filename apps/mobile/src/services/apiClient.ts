@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/env'
+import { API_BASE_URL_NORMALIZED } from '../config/env'
 import { extractApiErrorMessage } from '../utils/extractApiErrorMessage'
 import * as authStorage from './authStorage'
 import { beginApiMutation, endApiMutation } from './apiActivity'
@@ -26,7 +26,7 @@ async function runRefresh(): Promise<boolean> {
  * Fetch autenticado: envia Bearer, trata 401 com POST /api/refresh-mobile uma vez e repete o pedido.
  */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const base = API_BASE_URL.replace(/\/$/, '')
+  const base = API_BASE_URL_NORMALIZED
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`
 
   const doFetch = async (token: string | null) => {

@@ -13,6 +13,13 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
+import { isDomainError } from '../../application/DomainError'
+import {
+  concludeRecebimentoTaskUseCase,
+  createRecebimentoTaskUseCase,
+  loadRecebimentoNotaItensUseCase,
+  saveRecebimentoItemQtyUseCase,
+} from '../../application/use-cases'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -20,12 +27,6 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { showWmsConfirm, showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
 import { wmsUiTokens } from '../../features/wms/ui/tokens'
 import type { HomeStackParamList } from '../../navigation/types'
-import {
-  getRecebimentoNotaItens,
-  patchRecebimentoItem,
-  postRecebimentoConcluir,
-  postRecebimentoTarefa,
-} from '../../services/wmsApi'
 import type { ItemNota } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RecebimentoNotaItens'>
@@ -43,7 +44,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
   const loadItens = useCallback(async () => {
     setError(null)
     try {
-      const data = await getRecebimentoNotaItens(nunota)
+      const data = await loadRecebimentoNotaItensUseCase(nunota)
       setItems(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar itens')
@@ -60,7 +61,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
 
   const criarTarefa = async () => {
     try {
-      const { nutarefa: nu } = await postRecebimentoTarefa({ nunota, codemp })
+      const nu = await createRecebimentoTaskUseCase({ nunota, codemp })
       setNutarefa(nu)
       await loadItens()
     } catch (e) {
@@ -80,17 +81,20 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
   }
 
   const salvarQtd = async () => {
-    if (!qtyModal || !nutarefa) return
-    const q = parseFloat(qtyText.replace(',', '.'))
-    if (Number.isNaN(q)) {
-      Alert.alert('Recebimento', 'Quantidade inválida.')
-      return
-    }
+    if (!qtyModal) return
     try {
-      await patchRecebimentoItem(nutarefa, qtyModal.item.nuitem, { qtdrealizada: q })
+      await saveRecebimentoItemQtyUseCase({
+        nutarefa,
+        nuitem: qtyModal.item.nuitem,
+        qtyText,
+      })
       setQtyModal(null)
       await loadItens()
     } catch (e) {
+      if (isDomainError(e) && (e.code === 'RECEBIMENTO_QTY_INVALID' || e.code === 'RECEBIMENTO_TASK_REQUIRED')) {
+        Alert.alert('Recebimento', e.message)
+        return
+      }
       showWmsError('Recebimento', e, 'Erro ao salvar')
     }
   }
@@ -105,9 +109,13 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
       'Confirma a conclusão desta tarefa? Será gerada a tarefa de armazenagem.',
       async () => {
         try {
-          await postRecebimentoConcluir(nutarefa, {})
+          await concludeRecebimentoTaskUseCase(nutarefa)
           showWmsSuccess('Recebimento', 'Tarefa concluída.', () => navigation.goBack())
         } catch (e) {
+          if (isDomainError(e) && e.code === 'RECEBIMENTO_TASK_REQUIRED') {
+            Alert.alert('Recebimento', e.message)
+            return
+          }
           showWmsError('Recebimento', e, 'Erro ao concluir')
         }
       },

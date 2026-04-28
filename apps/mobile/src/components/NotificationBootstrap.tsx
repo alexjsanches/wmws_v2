@@ -1,17 +1,16 @@
 import * as Notifications from 'expo-notifications'
 import { useEffect, useRef } from 'react'
-import { AppState, Platform } from 'react-native'
+import { AppState } from 'react-native'
+import { registerPushDeviceUseCase } from '../application/use-cases'
 import { useAuth } from '../context/AuthContext'
 import { applyWmsNotificationData } from '../navigation/applyWmsNotificationData'
 import { consumeNotificationOpenOnce } from '../navigation/notificationOpenDedup'
-import { postWmsNotificationsRegisterDevice } from '../services/notificationsApi'
+import { logger } from '../services/logger'
 import { getPushNotificationsOptIn } from '../services/pushSettingsStorage'
-import { ensureAndroidNotificationChannel, getExpoPushTokenOrThrow } from '../services/wmsPushSetup'
 
 function devPushLog(message: string, extra?: unknown) {
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    // eslint-disable-next-line no-console -- diagnóstico local (Metro)
-    console.warn(`[WMS push] ${message}`, extra !== undefined ? extra : '')
+    logger.warn(message, extra)
   }
 }
 
@@ -70,33 +69,29 @@ export function NotificationBootstrap() {
       }
 
       try {
-        await ensureAndroidNotificationChannel()
-        const { status: existing } = await Notifications.getPermissionsAsync()
-        let finalStatus = existing
-        if (existing !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync()
-          finalStatus = status
-        }
-        if (finalStatus !== 'granted' || cancelled) {
-          devPushLog('Registo ignorado: permissão de notificação não concedida.', { status: finalStatus })
+        const result = await registerPushDeviceUseCase()
+        if (cancelled) return
+        if (!result.ok) {
+          if (result.reason === 'permission_denied') {
+            devPushLog('Registo ignorado: permissão de notificação não concedida.')
+            return
+          }
+          if (result.reason === 'no_token') {
+            devPushLog(
+              'Sem token Expo (simulador, Expo Go Android SDK 53+, ou falta extra.eas.projectId / dev build).',
+            )
+            return
+          }
+          if (result.reason === 'opt_out') {
+            devPushLog('Registo ignorado: notificações desligadas nas definições da app.')
+            return
+          }
+          devPushLog('Falha ao registar token (rede, 401/404 no endpoint, etc.).')
           return
         }
-
-        const expoPushToken = await getExpoPushTokenOrThrow()
-        if (!expoPushToken || cancelled) {
-          devPushLog(
-            'Sem token Expo (simulador, Expo Go Android SDK 53+, ou falta extra.eas.projectId / dev build).',
-          )
-          return
-        }
-        if (lastRegisteredToken.current === expoPushToken) return
-
-        await postWmsNotificationsRegisterDevice({
-          expoPushToken,
-          platform: Platform.OS === 'ios' ? 'ios' : 'android',
-        })
-        lastRegisteredToken.current = expoPushToken
-        devPushLog('Token registado no backend.', { platform: Platform.OS })
+        if (lastRegisteredToken.current === result.token) return
+        lastRegisteredToken.current = result.token
+        devPushLog('Token registado no backend.')
       } catch (e) {
         devPushLog('Falha ao registar token (rede, 401/404 no endpoint, etc.).', e)
       }

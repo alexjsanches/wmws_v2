@@ -1,8 +1,13 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+﻿import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
+import {
+  applyConferenciaItemQtyUseCase,
+  concludeConferenciaTaskUseCase,
+  loadConferenciaTaskUseCase,
+} from '../../application/use-cases'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -16,7 +21,6 @@ import { BaseActionModal } from '../../features/wms/ui/BaseActionModal'
 import { showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
 import { useTaskExecutionFlow } from '../../features/wms/taskExecution/useTaskExecutionFlow'
 import type { HomeStackParamList } from '../../navigation/types'
-import { getConferenciaTarefaItens, patchConferenciaItem, postConferenciaConcluir } from '../../services/wmsApi'
 import type { ItemTarefaWms } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ConferenciaTarefaItens'>
@@ -32,7 +36,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
   const loadItens = useCallback(async () => {
     setError(null)
     try {
-      const data = await getConferenciaTarefaItens(nutarefa)
+      const data = await loadConferenciaTaskUseCase(nutarefa)
       setItems(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar itens')
@@ -49,7 +53,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
 
   const aplicarQuantidade = useCallback(async (item: ItemTarefaWms, qtd: number) => {
     try {
-      await patchConferenciaItem(nutarefa, item.nuitem, { qtdrealizada: qtd, controle: item.controle })
+      await applyConferenciaItemQtyUseCase({ nutarefa, item, qtd })
       await loadItens()
     } catch (e) {
       showWmsError('Conferência', e, 'Erro ao salvar')
@@ -125,7 +129,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
 
   const confirmarConclusao = async () => {
     try {
-      await postConferenciaConcluir(nutarefa, buildPayload())
+      await concludeConferenciaTaskUseCase({ nutarefa, payload: buildPayload() })
       setFechamentoModalOpen(false)
       showWmsSuccess('Conferência', 'Tarefa concluída.', () => navigation.goBack())
     } catch (e) {

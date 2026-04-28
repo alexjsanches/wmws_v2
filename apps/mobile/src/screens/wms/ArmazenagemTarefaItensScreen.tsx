@@ -13,6 +13,12 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, radii, space } from '@wms/theme'
+import { isDomainError } from '../../application/DomainError'
+import {
+  concludeArmazenagemTaskUseCase,
+  loadArmazenagemTaskItemsUseCase,
+  saveArmazenagemItemUseCase,
+} from '../../application/use-cases'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -21,11 +27,6 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { showWmsConfirm, showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
 import { wmsUiTokens } from '../../features/wms/ui/tokens'
 import type { HomeStackParamList } from '../../navigation/types'
-import {
-  getArmazenagemTarefaItens,
-  patchArmazenagemItem,
-  postArmazenagemConcluir,
-} from '../../services/wmsApi'
 import type { ItemArmazenagem } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ArmazenagemTarefaItens'>
@@ -43,7 +44,7 @@ export function ArmazenagemTarefaItensScreen({ navigation, route }: Props) {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const data = await getArmazenagemTarefaItens(nutarefa)
+      const data = await loadArmazenagemTaskItemsUseCase(nutarefa)
       setItems(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar')
@@ -66,19 +67,20 @@ export function ArmazenagemTarefaItensScreen({ navigation, route }: Props) {
 
   const salvarItem = async () => {
     if (!modal) return
-    const q = parseFloat(qtd.replace(',', '.'))
-    if (Number.isNaN(q)) {
-      Alert.alert('Armazenagem', 'Quantidade inválida.')
-      return
-    }
     try {
-      await patchArmazenagemItem(nutarefa, modal.item.nuitem, {
-        qtdrealizada: q,
-        local_livre: localLivre.trim() || undefined,
+      await saveArmazenagemItemUseCase({
+        nutarefa,
+        nuitem: modal.item.nuitem,
+        qtyText: qtd,
+        localLivreText: localLivre,
       })
       setModal(null)
       await load()
     } catch (e) {
+      if (isDomainError(e) && e.code === 'ARMAZENAGEM_QTY_INVALID') {
+        Alert.alert('Armazenagem', e.message)
+        return
+      }
       showWmsError('Armazenagem', e, 'Erro ao salvar')
     }
   }
@@ -89,7 +91,7 @@ export function ArmazenagemTarefaItensScreen({ navigation, route }: Props) {
       'Confirma a conclusão desta tarefa?',
       async () => {
         try {
-          await postArmazenagemConcluir(nutarefa)
+          await concludeArmazenagemTaskUseCase(nutarefa)
           showWmsSuccess('Armazenagem', 'Tarefa concluída.', () => navigation.goBack())
         } catch (e) {
           showWmsError('Armazenagem', e, 'Erro ao concluir')

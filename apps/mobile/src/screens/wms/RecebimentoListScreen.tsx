@@ -10,10 +10,10 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
+import { loadRecebimentoListUseCase } from '../../application/use-cases'
 import { Card } from '../../components/ui/Card'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import type { HomeStackParamList } from '../../navigation/types'
-import { getRecebimentoNotasPendentes } from '../../services/wmsApi'
 import type { TarefaResumo } from '../../types/wms'
 import { formatDisplayValue } from '../../utils/formatDisplayValue'
 import { formatParceiro } from '../../utils/formatParceiro'
@@ -28,7 +28,7 @@ export function RecebimentoListScreen({ navigation }: Props) {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const data = await getRecebimentoNotasPendentes()
+      const data = await loadRecebimentoListUseCase()
       setItems(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar')
