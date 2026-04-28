@@ -1,0 +1,17 @@
+{
+  "name": "wms-v2",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "mobile": "pnpm --filter mobile start",
+    "mobile:android": "pnpm --filter mobile exec expo run:android",
+    "mobile:ios": "pnpm --filter mobile exec expo run:ios"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.14",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

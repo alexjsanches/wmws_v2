@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "WMS WorldSeg",
+    "slug": "wmws-v2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "wmws",
+    "extra": {
+      "apiUrl": "https://incorruptibly-unidling-beth.ngrok-free.dev",
+      "eas": {
+        "projectId": "74c40c27-0e6d-438c-b137-05a520d851c9"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.worldseg.wmwsv2"
+    },
+    "android": {
+      "package": "com.worldseg.wmwsv2",
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      "expo-notifications"
+    ],
+    "owner": "alexandrejsanches"
+  }
+}
