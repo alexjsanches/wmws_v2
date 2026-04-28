@@ -1,8 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,14 +14,12 @@ import { Card } from '../components/ui/Card'
 import { ScreenHeader } from '../components/ui/ScreenHeader'
 import { SnkField } from '../components/ui/SnkField'
 import { SnkSuggestionLookup } from '../components/ui/SnkSuggestionLookup'
+import { useConsultaProduto, type AbaConsultaProduto } from '../features/ferramentas/consultaProduto/useConsultaProduto'
 import type { FerramentasStackParamList } from '../navigation/types'
-import { getWmsProdutoConsulta, type ConsultaProdutoWmsResposta } from '../services/wmsApi'
 
 type Props = NativeStackScreenProps<FerramentasStackParamList, 'ConsultaProduto'>
 
-type Aba = 'produto' | 'estoque' | 'reservas' | 'entradas'
-
-const ABAS: { key: Aba; label: string }[] = [
+const ABAS: { key: AbaConsultaProduto; label: string }[] = [
   { key: 'produto', label: 'Produto' },
   { key: 'estoque', label: 'Estoque' },
   { key: 'reservas', label: 'Reservas' },
@@ -46,41 +42,21 @@ function linhaRotuloValor(rotulo: string, valor: string) {
 }
 
 export function ConsultaProdutoScreen({ navigation }: Props) {
-  const [codProd, setCodProd] = useState('')
-  const [descrProd, setDescrProd] = useState('')
-  const [aba, setAba] = useState<Aba>('produto')
-  const [loading, setLoading] = useState(false)
-  const [data, setData] = useState<ConsultaProdutoWmsResposta | null>(null)
+  const {
+    codProd,
+    setCodProd,
+    descrProd,
+    setDescrProd,
+    aba,
+    setAba,
+    loading,
+    data,
+    hasData,
+    consultar,
+    consultarOnBlur,
+  } = useConsultaProduto()
 
-  const consultar = useCallback(async () => {
-    const prod = Number(String(codProd).trim())
-    if (!Number.isFinite(prod) || prod <= 0) {
-      Alert.alert('Validação', 'Informe um código de produto válido.')
-      return
-    }
-    setLoading(true)
-    setData(null)
-    try {
-      const res = await getWmsProdutoConsulta(prod)
-      setData(res)
-      setAba('produto')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao consultar.'
-      Alert.alert('Consulta', msg)
-      setData(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [codProd])
-
-  const consultarOnBlur = useCallback(() => {
-    if (loading) return
-    const c = String(codProd).trim()
-    if (!c) return
-    void consultar()
-  }, [codProd, consultar, loading])
-
-  const conteudoAba = useMemo(() => {
+  const conteudoAba = (() => {
     if (!data) {
       return (
         <Text style={styles.placeholder}>
@@ -163,7 +139,7 @@ export function ConsultaProdutoScreen({ navigation }: Props) {
     }
 
     return null
-  }, [aba, data])
+  })()
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -193,7 +169,7 @@ export function ConsultaProdutoScreen({ navigation }: Props) {
             )}
           </Button>
 
-          {data ? (
+          {hasData ? (
             <View style={styles.tabBar}>
               {ABAS.map((t) => {
                 const ativo = aba === t.key

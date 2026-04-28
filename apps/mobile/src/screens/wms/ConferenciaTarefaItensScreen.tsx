@@ -1,141 +1,38 @@
 ﻿import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
-import {
-  applyConferenciaItemQtyUseCase,
-  concludeConferenciaTaskUseCase,
-  loadConferenciaTaskUseCase,
-} from '../../application/use-cases'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
 import { ConferenciaFechamentoModal } from '../../features/wms/conferencia/ConferenciaFechamentoModal'
-import { useConferenciaFechamento } from '../../features/wms/conferencia/useConferenciaFechamento'
-import { useConferenciaVolumes } from '../../features/wms/conferencia/useConferenciaVolumes'
+import { useConferenciaTaskScreen } from '../../features/wms/conferencia/useConferenciaTaskScreen'
 import { CurrentItemCard, TaskProgressoCard } from '../../features/wms/taskExecution/TaskCards'
 import { ItemPickerModal, QtyInputModal } from '../../features/wms/taskExecution/TaskModals'
 import { BaseActionModal } from '../../features/wms/ui/BaseActionModal'
-import { showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
-import { useTaskExecutionFlow } from '../../features/wms/taskExecution/useTaskExecutionFlow'
 import type { HomeStackParamList } from '../../navigation/types'
-import type { ItemTarefaWms } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'ConferenciaTarefaItens'>
 
 export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
   const { nutarefa, nunota, numnota, codonda } = route.params
-  const [items, setItems] = useState<ItemTarefaWms[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [qtdVolumeText, setQtdVolumeText] = useState('1')
-  const [obsNovoVolume, setObsNovoVolume] = useState('')
-  const loadItens = useCallback(async () => {
-    setError(null)
-    try {
-      const data = await loadConferenciaTaskUseCase(nutarefa)
-      setItems(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar itens')
-      setItems([])
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [nutarefa])
-
-  useEffect(() => {
-    void loadItens()
-  }, [loadItens])
-
-  const aplicarQuantidade = useCallback(async (item: ItemTarefaWms, qtd: number) => {
-    try {
-      await applyConferenciaItemQtyUseCase({ nutarefa, item, qtd })
-      await loadItens()
-    } catch (e) {
-      showWmsError('Conferência', e, 'Erro ao salvar')
-    }
-  }, [loadItens, nutarefa])
-
   const {
-    qtyModal,
-    qtyText,
-    setQtyModal,
-    setQtyText,
-    listaModalOpen,
-    setListaModalOpen,
-    itemAtual,
-    itensOrdenados,
-    totais,
-    abrirModalQtd,
-    salvarQtd,
-    marcarAchouTudo,
-    escolherItem,
-    isApplying,
-  } = useTaskExecutionFlow({
-    items,
-    taskLabel: 'Conferência',
-    onApplyQuantidade: aplicarQuantidade,
-  })
-
-  const {
-    fechamentoModalOpen,
-    setFechamentoModalOpen,
-    enderecoExpedicao,
-    setEnderecoExpedicao,
-    pesoBruto,
-    setPesoBruto,
+    loading,
+    refreshing,
+    error,
+    setRefreshing,
+    loadItens,
+    qtdVolumeText,
+    setQtdVolumeText,
+    obsNovoVolume,
+    setObsNovoVolume,
+    confirmConclusion,
+    addCurrentItemToOpenVolume,
+    flow,
+    fechamento,
     volumes,
-    setVolumes,
-    altura,
-    setAltura,
-    largura,
-    setLargura,
-    profundidade,
-    setProfundidade,
-    divergenciaMeta,
-    setDivergenciaMeta,
-    corteMeta,
-    setCorteMeta,
-    divergenciasBase,
-    buildPayload,
-  } = useConferenciaFechamento(items)
-
-  const {
-    modo,
-    setModo,
-    resumo,
-    volumes: volumesConferencia,
-    loadingVolumes,
-    volumeAberto,
-    loadVolumes,
-    abrirVolume,
-    fecharVolume,
-    adicionarItemAtualAoVolume,
-    itensVolumeOpen,
-    setItensVolumeOpen,
-    abrirItensVolume,
-    removerItemVolume,
-  } = useConferenciaVolumes(nutarefa)
-
-  useEffect(() => {
-    if (modo === 'detalhado') {
-      void loadVolumes()
-    }
-  }, [loadVolumes, modo])
-
-  const confirmarConclusao = async () => {
-    try {
-      await concludeConferenciaTaskUseCase({ nutarefa, payload: buildPayload() })
-      setFechamentoModalOpen(false)
-      showWmsSuccess('Conferência', 'Tarefa concluída.', () => navigation.goBack())
-    } catch (e) {
-      showWmsError('Conferência', e, 'Erro ao concluir')
-    }
-  }
+  } = useConferenciaTaskScreen({ nutarefa, onConcluded: () => navigation.goBack() })
 
   if (loading) {
     return (
@@ -158,47 +55,47 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadItens() }} />}
       >
-        <TaskProgressoCard titulo="Progresso da conferência" totais={totais} />
+        <TaskProgressoCard titulo="Progresso da conferência" totais={flow.totais} />
 
         <Card>
           <Text style={styles.cardTitle}>Modo de conferência</Text>
           <View style={styles.rowBtns}>
             <Button
-              variant={modo === 'simples' ? 'primary' : 'outline'}
-              onPress={() => setModo('simples')}
+              variant={volumes.modo === 'simples' ? 'primary' : 'outline'}
+              onPress={() => volumes.setModo('simples')}
               style={{ flex: 1 }}
             >
               Simples
             </Button>
             <Button
-              variant={modo === 'detalhado' ? 'primary' : 'outline'}
-              onPress={() => setModo('detalhado')}
+              variant={volumes.modo === 'detalhado' ? 'primary' : 'outline'}
+              onPress={() => volumes.setModo('detalhado')}
               style={{ flex: 1 }}
             >
               Detalhado por volume
             </Button>
           </View>
           <Text style={styles.meta}>
-            {modo === 'simples'
+            {volumes.modo === 'simples'
               ? 'Finaliza conferência só com totais no fechamento.'
               : 'Permite abrir volumes/caixas e alocar itens durante a conferência.'}
           </Text>
         </Card>
 
-        {modo === 'detalhado' ? (
+        {volumes.modo === 'detalhado' ? (
           <Card>
             <Text style={styles.cardTitle}>Volumes da conferência</Text>
-            {loadingVolumes ? <ActivityIndicator color={colors.primary} /> : null}
+            {volumes.loadingVolumes ? <ActivityIndicator color={colors.primary} /> : null}
             <Text style={styles.metaStrong}>
-              Resumo: {resumo?.qtdVolumes ?? 0} volumes | {resumo?.volumesAbertos ?? 0} abertos | {resumo?.qtdItensVolume ?? 0} itens
+              Resumo: {volumes.resumo?.qtdVolumes ?? 0} volumes | {volumes.resumo?.volumesAbertos ?? 0} abertos | {volumes.resumo?.qtdItensVolume ?? 0} itens
             </Text>
             <View style={styles.rowBtns}>
-              <Button variant="outline" onPress={() => void loadVolumes()} style={{ flex: 1 }}>
+              <Button variant="outline" onPress={() => void volumes.loadVolumes()} style={{ flex: 1 }}>
                 Atualizar
               </Button>
               <Button
                 onPress={() => {
-                  void abrirVolume(obsNovoVolume.trim() || undefined)
+                  void volumes.abrirVolume(obsNovoVolume.trim() || undefined)
                   setObsNovoVolume('')
                 }}
                 style={{ flex: 1 }}
@@ -211,29 +108,33 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
               onChangeText={setObsNovoVolume}
               placeholder="Ex.: caixa itens pequenos"
             />
-            {volumeAberto ? (
-              <View style={styles.volumeAbertoBox}>
-                <Text style={styles.metaStrong}>Volume aberto: #{volumeAberto.seqvol}</Text>
-                <View style={styles.rowBtns}>
-                  <Button variant="outline" onPress={() => void abrirItensVolume(volumeAberto.seqvol)} style={{ flex: 1 }}>
-                    Ver itens
-                  </Button>
-                  <Button variant="danger" onPress={() => void fecharVolume(volumeAberto.seqvol)} style={{ flex: 1 }}>
-                    Fechar volume
-                  </Button>
+            {(() => {
+              const volumeAberto = volumes.volumeAberto
+              if (!volumeAberto) {
+                return <Text style={styles.meta}>Nenhum volume aberto no momento.</Text>
+              }
+              return (
+                <View style={styles.volumeAbertoBox}>
+                  <Text style={styles.metaStrong}>Volume aberto: #{volumeAberto.seqvol}</Text>
+                  <View style={styles.rowBtns}>
+                    <Button variant="outline" onPress={() => void volumes.abrirItensVolume(volumeAberto.seqvol)} style={{ flex: 1 }}>
+                      Ver itens
+                    </Button>
+                    <Button variant="danger" onPress={() => void volumes.fecharVolume(volumeAberto.seqvol)} style={{ flex: 1 }}>
+                      Fechar volume
+                    </Button>
+                  </View>
                 </View>
-              </View>
-            ) : (
-              <Text style={styles.meta}>Nenhum volume aberto no momento.</Text>
-            )}
+              )
+            })()}
             <View style={styles.listGap}>
-              {volumesConferencia.map((v) => (
+              {volumes.volumes.map((v) => (
                 <View key={v.seqvol} style={styles.volumeRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.metaStrong}>Volume #{v.seqvol} ({v.status})</Text>
                     <Text style={styles.meta}>Itens: {v.qtditens ?? 0} | Ordem: {v.ordem}</Text>
                   </View>
-                  <Button variant="outline" onPress={() => void abrirItensVolume(v.seqvol)}>
+                  <Button variant="outline" onPress={() => void volumes.abrirItensVolume(v.seqvol)}>
                     Itens
                   </Button>
                 </View>
@@ -243,10 +144,10 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
         ) : null}
 
         <View style={styles.rowBtns}>
-          <Button variant="outline" onPress={() => setListaModalOpen(true)} style={{ flex: 1 }}>
+          <Button variant="outline" onPress={() => flow.setListaModalOpen(true)} style={{ flex: 1 }}>
             Abrir lista de itens
           </Button>
-          <Button variant="success" onPress={() => setFechamentoModalOpen(true)} style={{ flex: 1 }}>
+          <Button variant="success" onPress={() => fechamento.setFechamentoModalOpen(true)} style={{ flex: 1 }}>
             Concluir tarefa
           </Button>
         </View>
@@ -254,15 +155,15 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
         {error ? <Text style={styles.err}>{error}</Text> : null}
 
         <CurrentItemCard
-          item={itemAtual}
+          item={flow.itemAtual}
           primaryActionLabel="Conferir total"
           secondaryActionLabel="Informar quantidade"
-          actionLoading={isApplying}
-          onPrimaryAction={(item) => marcarAchouTudo(item)}
-          onSecondaryAction={(item) => abrirModalQtd(item)}
+          actionLoading={flow.isApplying}
+          onPrimaryAction={(item) => flow.marcarAchouTudo(item)}
+          onSecondaryAction={(item) => flow.abrirModalQtd(item)}
         />
 
-        {modo === 'detalhado' ? (
+        {volumes.modo === 'detalhado' ? (
           <Card>
             <Text style={styles.cardTitle}>Alocar item atual no volume aberto</Text>
             <Input
@@ -272,76 +173,68 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
               keyboardType="decimal-pad"
             />
             <Button
-              disabled={!itemAtual || !volumeAberto}
-              onPress={() => {
-                if (!itemAtual) return
-                const qtd = Number(String(qtdVolumeText).replace(',', '.'))
-                if (!Number.isFinite(qtd) || qtd <= 0) {
-                  showWmsError('Volumes', new Error('Quantidade inválida.'), 'Informe uma quantidade válida.')
-                  return
-                }
-                void adicionarItemAtualAoVolume(itemAtual, qtd)
-              }}
+              disabled={!flow.itemAtual || !volumes.volumeAberto}
+              onPress={addCurrentItemToOpenVolume}
             >
               Adicionar item atual
             </Button>
-            <Text style={styles.meta}>{volumeAberto ? `Volume destino: #${volumeAberto.seqvol}` : 'Abra um volume para começar.'}</Text>
+            <Text style={styles.meta}>{volumes.volumeAberto ? `Volume destino: #${volumes.volumeAberto.seqvol}` : 'Abra um volume para começar.'}</Text>
           </Card>
         ) : null}
       </ScrollView>
 
       <ItemPickerModal
-        visible={listaModalOpen}
-        items={itensOrdenados}
-        onPick={escolherItem}
-        onClose={() => setListaModalOpen(false)}
+        visible={flow.listaModalOpen}
+        items={flow.itensOrdenados}
+        onPick={flow.escolherItem}
+        onClose={() => flow.setListaModalOpen(false)}
       />
 
       <QtyInputModal
-        visible={qtyModal != null}
-        item={qtyModal?.item ?? null}
-        value={qtyText}
-        onChange={setQtyText}
+        visible={flow.qtyModal != null}
+        item={flow.qtyModal?.item ?? null}
+        value={flow.qtyText}
+        onChange={flow.setQtyText}
         title="Quantidade conferida"
-        loading={isApplying}
-        onCancel={() => setQtyModal(null)}
-        onConfirm={() => void salvarQtd()}
+        loading={flow.isApplying}
+        onCancel={() => flow.setQtyModal(null)}
+        onConfirm={() => void flow.salvarQtd()}
       />
 
       <ConferenciaFechamentoModal
-        visible={fechamentoModalOpen}
-        onClose={() => setFechamentoModalOpen(false)}
-        onConfirm={() => void confirmarConclusao()}
-        enderecoExpedicao={enderecoExpedicao}
-        setEnderecoExpedicao={setEnderecoExpedicao}
-        pesoBruto={pesoBruto}
-        setPesoBruto={setPesoBruto}
-        volumes={volumes}
-        setVolumes={setVolumes}
-        altura={altura}
-        setAltura={setAltura}
-        largura={largura}
-        setLargura={setLargura}
-        profundidade={profundidade}
-        setProfundidade={setProfundidade}
-        divergenciasBase={divergenciasBase}
-        divergenciaMeta={divergenciaMeta}
-        setDivergenciaMeta={setDivergenciaMeta}
-        corteMeta={corteMeta}
-        setCorteMeta={setCorteMeta}
+        visible={fechamento.fechamentoModalOpen}
+        onClose={() => fechamento.setFechamentoModalOpen(false)}
+        onConfirm={() => void confirmConclusion()}
+        enderecoExpedicao={fechamento.enderecoExpedicao}
+        setEnderecoExpedicao={fechamento.setEnderecoExpedicao}
+        pesoBruto={fechamento.pesoBruto}
+        setPesoBruto={fechamento.setPesoBruto}
+        volumes={fechamento.volumes}
+        setVolumes={fechamento.setVolumes}
+        altura={fechamento.altura}
+        setAltura={fechamento.setAltura}
+        largura={fechamento.largura}
+        setLargura={fechamento.setLargura}
+        profundidade={fechamento.profundidade}
+        setProfundidade={fechamento.setProfundidade}
+        divergenciasBase={fechamento.divergenciasBase}
+        divergenciaMeta={fechamento.divergenciaMeta}
+        setDivergenciaMeta={fechamento.setDivergenciaMeta}
+        corteMeta={fechamento.corteMeta}
+        setCorteMeta={fechamento.setCorteMeta}
       />
 
       <BaseActionModal
-        visible={itensVolumeOpen != null}
-        title={itensVolumeOpen ? `Itens do volume #${itensVolumeOpen.seqvol}` : 'Itens do volume'}
-        onClose={() => setItensVolumeOpen(null)}
-        footer={<Button variant="outline" onPress={() => setItensVolumeOpen(null)}>Fechar</Button>}
+        visible={volumes.itensVolumeOpen != null}
+        title={volumes.itensVolumeOpen ? `Itens do volume #${volumes.itensVolumeOpen.seqvol}` : 'Itens do volume'}
+        onClose={() => volumes.setItensVolumeOpen(null)}
+        footer={<Button variant="outline" onPress={() => volumes.setItensVolumeOpen(null)}>Fechar</Button>}
       >
-        {itensVolumeOpen?.loading ? (
+        {volumes.itensVolumeOpen?.loading ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
           <View style={styles.listGap}>
-            {(itensVolumeOpen?.itens ?? []).map((iv) => (
+            {(volumes.itensVolumeOpen?.itens ?? []).map((iv) => (
               <View key={iv.seqitem} style={styles.volumeItemRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.metaStrong}>Item {iv.nuitem} · {iv.descrprod}</Text>
@@ -350,15 +243,15 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
                 <Button
                   variant="danger"
                   onPress={() => {
-                    if (!itensVolumeOpen) return
-                    void removerItemVolume(itensVolumeOpen.seqvol, iv.seqitem)
+                    if (!volumes.itensVolumeOpen) return
+                    void volumes.removerItemVolume(volumes.itensVolumeOpen.seqvol, iv.seqitem)
                   }}
                 >
                   Remover
                 </Button>
               </View>
             ))}
-            {!itensVolumeOpen?.itens.length ? <Text style={styles.meta}>Sem itens neste volume.</Text> : null}
+            {!volumes.itensVolumeOpen?.itens.length ? <Text style={styles.meta}>Sem itens neste volume.</Text> : null}
           </View>
         )}
       </BaseActionModal>

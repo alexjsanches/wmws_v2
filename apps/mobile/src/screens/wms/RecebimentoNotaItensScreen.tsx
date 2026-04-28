@@ -1,8 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -13,115 +11,40 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
-import { isDomainError } from '../../application/DomainError'
-import {
-  concludeRecebimentoTaskUseCase,
-  createRecebimentoTaskUseCase,
-  loadRecebimentoNotaItensUseCase,
-  saveRecebimentoItemQtyUseCase,
-} from '../../application/use-cases'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
-import { showWmsConfirm, showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
+import { useRecebimentoNotaItens } from '../../features/wms/recebimento/useRecebimentoNotaItens'
 import { wmsUiTokens } from '../../features/wms/ui/tokens'
 import type { HomeStackParamList } from '../../navigation/types'
-import type { ItemNota } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'RecebimentoNotaItens'>
 
 export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
   const { nunota, codemp, nutarefa: initialNutarefa } = route.params
-  const [nutarefa, setNutarefa] = useState<number | undefined>(initialNutarefa)
-  const [items, setItems] = useState<ItemNota[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [qtyModal, setQtyModal] = useState<{ item: ItemNota } | null>(null)
-  const [qtyText, setQtyText] = useState('')
-
-  const loadItens = useCallback(async () => {
-    setError(null)
-    try {
-      const data = await loadRecebimentoNotaItensUseCase(nunota)
-      setItems(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar itens')
-      setItems([])
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [nunota])
-
-  useEffect(() => {
-    void loadItens()
-  }, [loadItens])
-
-  const criarTarefa = async () => {
-    try {
-      const nu = await createRecebimentoTaskUseCase({ nunota, codemp })
-      setNutarefa(nu)
-      await loadItens()
-    } catch (e) {
-      showWmsError('Recebimento', e, 'Erro ao criar tarefa')
-    }
-  }
-
-  const abrirModalQtd = (item: ItemNota) => {
-    if (!nutarefa) {
-      Alert.alert('Recebimento', 'Crie a tarefa de recebimento antes de lançar quantidades.')
-      return
-    }
-    setQtyText(
-      item.qtdrealizada != null ? String(item.qtdrealizada) : String(item.qtdprevista),
-    )
-    setQtyModal({ item })
-  }
-
-  const salvarQtd = async () => {
-    if (!qtyModal) return
-    try {
-      await saveRecebimentoItemQtyUseCase({
-        nutarefa,
-        nuitem: qtyModal.item.nuitem,
-        qtyText,
-      })
-      setQtyModal(null)
-      await loadItens()
-    } catch (e) {
-      if (isDomainError(e) && (e.code === 'RECEBIMENTO_QTY_INVALID' || e.code === 'RECEBIMENTO_TASK_REQUIRED')) {
-        Alert.alert('Recebimento', e.message)
-        return
-      }
-      showWmsError('Recebimento', e, 'Erro ao salvar')
-    }
-  }
-
-  const concluir = () => {
-    if (!nutarefa) {
-      Alert.alert('Recebimento', 'Crie a tarefa antes de concluir.')
-      return
-    }
-    showWmsConfirm(
-      'Concluir recebimento',
-      'Confirma a conclusão desta tarefa? Será gerada a tarefa de armazenagem.',
-      async () => {
-        try {
-          await concludeRecebimentoTaskUseCase(nutarefa)
-          showWmsSuccess('Recebimento', 'Tarefa concluída.', () => navigation.goBack())
-        } catch (e) {
-          if (isDomainError(e) && e.code === 'RECEBIMENTO_TASK_REQUIRED') {
-            Alert.alert('Recebimento', e.message)
-            return
-          }
-          showWmsError('Recebimento', e, 'Erro ao concluir')
-        }
-      },
-      { confirmText: 'Concluir' },
-    )
-  }
+  const {
+    nutarefa,
+    items,
+    loading,
+    refreshing,
+    error,
+    qtyModal,
+    qtyText,
+    setQtyModal,
+    setQtyText,
+    setRefreshing,
+    loadItens,
+    createTask,
+    openQtyModal,
+    saveQty,
+    concludeTask,
+  } = useRecebimentoNotaItens({
+    nunota,
+    codemp,
+    initialNutarefa,
+    onConcluded: () => navigation.goBack(),
+  })
 
   if (loading) {
     return (
@@ -140,13 +63,13 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
       {!nutarefa ? (
         <View style={styles.pad}>
           <Text style={styles.hint}>Nenhuma tarefa REC aberta para esta nota.</Text>
-          <Button variant="default" onPress={criarTarefa} style={{ marginTop: space.md }}>
+          <Button variant="default" onPress={createTask} style={{ marginTop: space.md }}>
             Criar tarefa de recebimento
           </Button>
         </View>
       ) : (
         <View style={styles.rowPad}>
-          <Button variant="success" onPress={concluir}>
+          <Button variant="success" onPress={concludeTask}>
             Concluir recebimento
           </Button>
         </View>
@@ -170,7 +93,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
               {item.qtdrealizada != null ? ` · Conferido ${item.qtdrealizada}` : ''}
             </Text>
             <Text style={styles.meta}>Status: {item.status}</Text>
-            <Button variant="outline" onPress={() => abrirModalQtd(item)} style={{ marginTop: space.sm }}>
+            <Button variant="outline" onPress={() => openQtyModal(item)} style={{ marginTop: space.sm }}>
               Lançar quantidade
             </Button>
           </Card>
@@ -191,7 +114,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
               <Button variant="outline" onPress={() => setQtyModal(null)} style={{ flex: 1 }}>
                 Cancelar
               </Button>
-              <Button variant="default" onPress={() => void salvarQtd()} style={{ flex: 1 }}>
+              <Button variant="default" onPress={() => void saveQty()} style={{ flex: 1 }}>
                 Salvar
               </Button>
             </View>

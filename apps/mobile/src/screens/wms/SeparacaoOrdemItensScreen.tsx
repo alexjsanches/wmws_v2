@@ -1,5 +1,4 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -13,58 +12,28 @@ import { colors, space } from '@wms/theme'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { ScreenHeader } from '../../components/ui/ScreenHeader'
-import { showWmsError, showWmsSuccess } from '../../features/wms/ui/feedback'
+import { usePedidoTaskBootstrap } from '../../features/wms/taskExecution/usePedidoTaskBootstrap'
 import type { HomeStackParamList } from '../../navigation/types'
 import { getSeparacaoItensOrdem, postSeparacaoTarefa } from '../../services/wmsApi'
-import type { ItemTarefaWms } from '../../types/wms'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SeparacaoOrdemItens'>
 
 export function SeparacaoOrdemItensScreen({ navigation, route }: Props) {
   const { nunota, codemp, numnota } = route.params
-  const [items, setItems] = useState<ItemTarefaWms[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [criando, setCriando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setError(null)
-    try {
-      const data = await getSeparacaoItensOrdem(nunota)
-      setItems(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao carregar')
-      setItems([])
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [nunota])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const iniciar = async () => {
-    setCriando(true)
-    try {
-      const res = await postSeparacaoTarefa({ nunota, codemp })
-      const msg = res.existente ? 'Já existia tarefa SEP — abrindo.' : 'Tarefa criada.'
-      showWmsSuccess('Separação', msg, () =>
+  const { items, loading, refreshing, criando, error, setRefreshing, load, iniciar } = usePedidoTaskBootstrap({
+    nunota,
+    codemp,
+    taskLabel: 'Separação',
+    loadItems: getSeparacaoItensOrdem,
+    startTask: postSeparacaoTarefa,
+    onTaskOpened: ({ nutarefa, codonda }) =>
         navigation.replace('SeparacaoTarefaItens', {
-          nutarefa: res.nutarefa,
+          nutarefa,
           nunota,
           numnota,
-          codonda: res.codonda,
+          codonda: codonda ?? undefined,
         }),
-      )
-    } catch (e) {
-      showWmsError('Separação', e, 'Erro ao criar tarefa')
-    } finally {
-      setCriando(false)
-    }
-  }
+  })
 
   if (loading) {
     return (

@@ -14,6 +14,7 @@ import { navigationRef } from './src/navigation/navigationRef'
 import { MainTabs } from './src/navigation/MainTabs'
 import { LoginScreen } from './src/screens/LoginScreen'
 import { runAppBootstrap } from './src/services/AppBootstrapService'
+import { showUpdatePrompt } from './src/services/UpdatePromptService'
 
 const navTheme = {
   ...DefaultTheme,
@@ -33,6 +34,14 @@ export default function App() {
   useEffect(() => {
     void runAppBootstrap().then((result) => {
       setShutdownState({ active: result.shutdown, message: result.shutdownMessage })
+      if (result.updateAvailable && result.downloadUrl) {
+        showUpdatePrompt({
+          mandatory: result.mandatory,
+          latestVersion: result.latestVersion,
+          changelog: result.changelog,
+          downloadUrl: result.downloadUrl,
+        })
+      }
     })
   }, [])
 

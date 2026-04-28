@@ -16,6 +16,14 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, radii, space } from '@wms/theme'
+import { isDomainError } from '../../application/DomainError'
+import {
+  loadHistoricoEnderecoProdutoUseCase,
+  markProdutoDesaparecidoUseCase,
+  moveProdutoCadastroUseCase,
+  searchProdutosByEnderecoUseCase,
+  type ProdutoComFlag,
+} from '../../application/use-cases'
 import { useAuth } from '../../context/AuthContext'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -28,20 +36,10 @@ import { wmsUiTokens } from '../../features/wms/ui/tokens'
 import type { HomeStackParamList } from '../../navigation/types'
 import { AGENTE_ID_IMPRESSAO, IMPRESSORA_LOGICO, postImprimir } from '../../services/impressaoApi'
 import type { HistoricoEnderecoProduto, ProdutoEndereco } from '../../types/movimentacaoProativa'
-import {
-  getMpVerificarDesaparecimento,
-  postMpHistoricoEnderecos,
-  postMpLogMovimentacao,
-  postMpProdutosPorEndereco,
-  postMpRegistrarMovimentacao,
-  putMpEnderecoCadastroProduto,
-} from '../../services/movimentacaoProativaApi'
-import { formatarEndereco, parseEnderecoLocal, validarEnderecoCompleto } from '../../utils/formatarEndereco'
+import { formatarEndereco, validarEnderecoCompleto } from '../../utils/formatarEndereco'
 import { getCodUsu } from '../../utils/getCodUsu'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'MovimentacaoPorEndereco'>
-
-type ProdutoComFlag = ProdutoEndereco & { desaparecido: boolean }
 
 export function MovimentacaoPorEnderecoScreen({ navigation, route }: Props) {
   const { codemp } = route.params
@@ -70,30 +68,23 @@ export function MovimentacaoPorEnderecoScreen({ navigation, route }: Props) {
   }, [])
 
   const buscar = async () => {
-    const end = formatarEndereco(endereco).trim()
-    if (!validarEnderecoCompleto(end)) {
-      Alert.alert('Endereço', 'Informe o endereço no formato Módulo.Rua.Prédio.Nível (ex.: 01.21.08.004).')
-      return
-    }
     setLoading(true)
     try {
-      const lista = await postMpProdutosPorEndereco({ endereco: end, codemp })
-      if (lista.length === 0) {
+      const result = await searchProdutosByEnderecoUseCase({ enderecoInput: endereco, codemp })
+      if (result.produtos.length === 0) {
         Alert.alert('Busca', 'Nenhum produto com estoque neste endereço.')
         setProdutos([])
         setEnderecoAtual('')
         return
       }
-      const comFlag: ProdutoComFlag[] = await Promise.all(
-        lista.map(async (p) => {
-          const st = await getMpVerificarDesaparecimento(p.codprod)
-          return { ...p, desaparecido: st.desaparecido }
-        }),
-      )
-      setEnderecoAtual(end)
-      setProdutos(comFlag)
-      Alert.alert('Busca', `${comFlag.length} produto(s) encontrado(s).`)
+      setEnderecoAtual(result.endereco)
+      setProdutos(result.produtos)
+      Alert.alert('Busca', `${result.produtos.length} produto(s) encontrado(s).`)
     } catch (e) {
+      if (isDomainError(e) && e.code === 'SEPARACAO_ENDERECO_REQUIRED') {
+        Alert.alert('Endereço', e.message)
+        return
+      }
       showWmsError('Busca', e, 'Erro ao buscar.')
       setProdutos([])
     } finally {
@@ -110,7 +101,7 @@ export function MovimentacaoPorEnderecoScreen({ navigation, route }: Props) {
   const abrirHistorico = async (p: ProdutoEndereco) => {
     setModalHistorico({ produto: p, itens: [], loading: true })
     try {
-      const itens = await postMpHistoricoEnderecos({ codprod: p.codprod, codemp })
+      const itens = await loadHistoricoEnderecoProdutoUseCase({ codprod: p.codprod, codemp })
       setModalHistorico({ produto: p, itens, loading: false })
     } catch (e) {
       setModalHistorico(null)
@@ -129,15 +120,7 @@ export function MovimentacaoPorEnderecoScreen({ navigation, route }: Props) {
       async () => {
         try {
           setLoading(true)
-          await postMpLogMovimentacao({
-            codusu,
-            endlido: enderecoAtual,
-            endcadastro: p.enderecoCadastro,
-            acao: `Produto não encontrado no endereço ${enderecoAtual} (desaparecimento)`,
-            codprod: p.codprod,
-            controle: p.controle || ' ',
-            desaparecido: 'S',
-          })
+          await markProdutoDesaparecidoUseCase({ codusu, enderecoAtual, produto: p })
           setProdutos((prev) => prev.map((x) => (x.codprod === p.codprod ? { ...x, desaparecido: true } : x)))
           showWmsSuccess('Registrado', 'Desaparecimento registrado.')
         } catch (e) {
@@ -151,93 +134,37 @@ export function MovimentacaoPorEnderecoScreen({ navigation, route }: Props) {
   }
 
   const confirmarMover = async () => {
-    if (!codusu) {
-      Alert.alert('Movimentação', 'Perfil sem CODUSU — não é possível registrar o log.')
-      return
-    }
     const p = modalMover
     if (!p) return
-    const end = formatarEndereco(novoEndereco).trim()
-    if (!validarEnderecoCompleto(end)) {
-      Alert.alert('Endereço', 'Novo endereço inválido.')
-      return
-    }
-    const partes = parseEnderecoLocal(end)
-    if (!partes) {
-      Alert.alert('Endereço', 'Não foi possível interpretar o endereço.')
-      return
-    }
     setLoading(true)
     try {
-      await putMpEnderecoCadastroProduto({
-        codprod: p.codprod,
-        modulo: partes.modulo,
-        rua: partes.rua,
-        predio: partes.predio,
-        nivel: partes.nivel,
-      })
-      await postMpLogMovimentacao({
+      await moveProdutoCadastroUseCase({
         codusu,
-        endlido: enderecoAtual,
-        endcadastro: end,
-        acao: `Moveu produto de ${enderecoAtual} para ${end}`,
-        codprod: p.codprod,
-        controle: p.controle || ' ',
-        desaparecido: 'N',
-      })
-      const primeira = await postMpRegistrarMovimentacao({
         codemp,
-        codprod: p.codprod,
-        codvol: p.codvol || undefined,
-        qtd: 1,
-        enderecoOrigem: enderecoAtual,
-        enderecoDestino: end,
-        qtdMovimentada: 1,
-        acao: 'atualizarCadastroPorEndereco',
+        enderecoAtual,
+        novoEnderecoInput: novoEndereco,
+        produto: p,
+        confirmPolicyWarnings: async (warnings, fallbackMessage) => {
+          return new Promise<boolean>((resolve) => {
+            Alert.alert('Confirmação de política', warnings || fallbackMessage, [
+              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Confirmar e seguir', onPress: () => resolve(true) },
+            ])
+          })
+        },
       })
-      if (!primeira.success && 'requireConfirmation' in primeira && primeira.requireConfirmation) {
-        const avisos = primeira.policy.warnings.length
-          ? primeira.policy.warnings.map((w) => `- ${w}`).join('\n')
-          : primeira.message
-        const confirmou = await new Promise<boolean>((resolve) => {
-          Alert.alert('Confirmação de política', avisos || 'Movimentação exige confirmação.', [
-            { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
-            {
-              text: 'Confirmar e seguir',
-              onPress: () => {
-                void (async () => {
-                  const segunda = await postMpRegistrarMovimentacao({
-                    codemp,
-                    codprod: p.codprod,
-                    codvol: p.codvol || undefined,
-                    qtd: 1,
-                    enderecoOrigem: enderecoAtual,
-                    enderecoDestino: end,
-                    qtdMovimentada: 1,
-                    acao: 'atualizarCadastroPorEndereco',
-                    confirmarComAlerta: true,
-                  })
-                  if (!segunda.success) {
-                    throw new Error(segunda.policy.errors.join('\n') || segunda.message || 'Movimentação bloqueada.')
-                  }
-                  resolve(true)
-                })().catch((e) => {
-                  showWmsError('Movimentação', e, 'Erro ao confirmar movimentação.')
-                  resolve(false)
-                })
-              },
-            },
-          ])
-        })
-        if (!confirmou) return
-      } else if (!primeira.success) {
-        throw new Error(primeira.policy.errors.join('\n') || primeira.message || 'Movimentação bloqueada.')
-      }
       setProdutos((prev) => prev.filter((x) => x.codprod !== p.codprod))
       setModalMover(null)
       setNovoEndereco('')
       showWmsSuccess('Sucesso', 'Endereço de cadastro atualizado e log gravado.')
     } catch (e) {
+      if (isDomainError(e)) {
+        Alert.alert('Movimentação', e.message)
+        return
+      }
+      if (e instanceof Error && e.message === 'Movimentação cancelada pelo usuário.') {
+        return
+      }
       showWmsError('Erro', e, 'Falha ao mover.')
     } finally {
       setLoading(false)

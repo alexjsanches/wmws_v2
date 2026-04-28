@@ -1,8 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,13 +16,14 @@ import { Input } from '../components/ui/Input'
 import { ScreenHeader } from '../components/ui/ScreenHeader'
 import { SnkField } from '../components/ui/SnkField'
 import { SnkSuggestionLookup } from '../components/ui/SnkSuggestionLookup'
+import {
+  sentimentoLinhaExtrato,
+  useGerenciaProdutosExtrato,
+} from '../features/ferramentas/gerenciaExtrato/useGerenciaProdutosExtrato'
 import type { FerramentasStackParamList } from '../navigation/types'
-import { postGerenciaProdutosExtrato, type ExtratoLinha } from '../services/snkGerenciaProdutosApi'
-import { DATA_INICIAL_AMPLA_API, dataDeHojeBr, formatarDataBr, inicioDoDia } from '../utils/dateBr'
+import type { ExtratoLinha } from '../services/snkGerenciaProdutosApi'
 
 type Props = NativeStackScreenProps<FerramentasStackParamList, 'GerenciaExtrato'>
-
-type SentimentoLinha = 'entrada' | 'saida' | 'neutro'
 
 /** Larguras fixas: mesma coluna em todas as linhas (evita desalinhamento com texto longo). */
 const COLS: { key: string; label: string; width: number; lines?: number }[] = [
@@ -49,114 +49,40 @@ function valorCelula(linha: ExtratoLinha, key: string): string {
   return v !== undefined && v !== '' ? v : '—'
 }
 
-/** Interpreta quantidade negociada para classificar entrada/saída (extrato). */
-function parseQuantidade(qtd: string | undefined): number {
-  if (qtd === undefined || qtd === '') return NaN
-  let t = String(qtd).trim().replace(/\s/g, '')
-  if (t === '' || t === '—') return NaN
-  let sign = 1
-  if (/^-/.test(t)) {
-    sign = -1
-    t = t.slice(1)
-  }
-  if (/,/.test(t)) {
-    t = t.replace(/\./g, '').replace(',', '.')
-  } else {
-    t = t.replace(/,/g, '.')
-  }
-  const n = parseFloat(t)
-  return Number.isFinite(n) ? sign * n : NaN
-}
-
-function sentimentoLinha(linha: ExtratoLinha): SentimentoLinha {
-  const q = parseQuantidade(linha.QTDNEG)
-  if (Number.isNaN(q) || q === 0) return 'neutro'
-  return q > 0 ? 'entrada' : 'saida'
-}
-
-function ultimoSaldoExibicao(linhas: ExtratoLinha[]): string {
-  for (let i = linhas.length - 1; i >= 0; i--) {
-    const s = linhas[i].SALDO
-    if (s !== undefined && s !== '') return s
-  }
-  return '—'
-}
-
 export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
-  const [dateIni, setDateIni] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return inicioDoDia(d)
-  })
-  const [dateFin, setDateFin] = useState(() => inicioDoDia(new Date()))
-
-  const [codProd, setCodProd] = useState('')
-  const [descrProd, setDescrProd] = useState('')
-  const [controle, setControle] = useState(' ')
-  const [codLocal, setCodLocal] = useState('')
-  const [descrLocal, setDescrLocal] = useState('')
-  const [codEmp, setCodEmp] = useState('')
-  const [descrEmp, setDescrEmp] = useState('')
-  const [periodoDias, setPeriodoDias] = useState('0')
-  const [visualizarSaldo, setVisualizarSaldo] = useState(true)
-  const [vlrNegPos, setVlrNegPos] = useState(false)
-  const [naoInformarDatas, setNaoInformarDatas] = useState(false)
-
-  const [linhas, setLinhas] = useState<ExtratoLinha[]>([])
-  const [loading, setLoading] = useState(false)
-  const [consultou, setConsultou] = useState(false)
-
-  const saldoAtual = useMemo(() => ultimoSaldoExibicao(linhas), [linhas])
-
-  const consultar = useCallback(async () => {
-    const prod = Number(String(codProd).trim())
-    if (!Number.isFinite(prod) || prod <= 0) {
-      Alert.alert('Validação', 'Código de produto inválido.')
-      return
-    }
-    if (!naoInformarDatas && dateIni.getTime() > dateFin.getTime()) {
-      Alert.alert('Validação', 'Data inicial maior que a final.')
-      return
-    }
-    const pd = Number(String(periodoDias).trim())
-    const periodoDiasNum = Number.isFinite(pd) ? pd : 0
-
-    setLoading(true)
-    setConsultou(true)
-    try {
-      const { linhas: data } = await postGerenciaProdutosExtrato({
-        codProd: prod,
-        dtIni: naoInformarDatas ? DATA_INICIAL_AMPLA_API : formatarDataBr(dateIni),
-        dtFin: naoInformarDatas ? dataDeHojeBr() : formatarDataBr(dateFin),
-        controle: controle === '' ? ' ' : controle,
-        codLocal: codLocal.trim(),
-        codEmp: String(codEmp).trim(),
-        codEmp2: String(codEmp).trim(),
-        periodoDias: periodoDiasNum,
-        visualizarSaldo,
-        vlrNegPos,
-        filtro: {},
-      })
-      setLinhas(data)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Erro ao consultar.'
-      Alert.alert('Extrato', msg)
-      setLinhas([])
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    codProd,
+  const {
     dateIni,
+    setDateIni,
     dateFin,
+    setDateFin,
+    codProd,
+    setCodProd,
+    descrProd,
+    setDescrProd,
     controle,
+    setControle,
     codLocal,
+    setCodLocal,
+    descrLocal,
+    setDescrLocal,
     codEmp,
+    setCodEmp,
+    descrEmp,
+    setDescrEmp,
     periodoDias,
+    setPeriodoDias,
     visualizarSaldo,
+    setVisualizarSaldo,
     vlrNegPos,
+    setVlrNegPos,
     naoInformarDatas,
-  ])
+    setNaoInformarDatas,
+    linhas,
+    loading,
+    consultou,
+    saldoAtual,
+    consultar,
+  } = useGerenciaProdutosExtrato()
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -278,7 +204,7 @@ export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
                     showsVerticalScrollIndicator
                   >
                     {linhas.map((item, index) => {
-                      const s = sentimentoLinha(item)
+                      const s = sentimentoLinhaExtrato(item)
                       const rowStyle =
                         s === 'entrada'
                           ? styles.trEntrada

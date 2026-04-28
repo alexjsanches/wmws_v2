@@ -1,5 +1,5 @@
 import * as Application from 'expo-application'
-import { Alert, Linking, Platform } from 'react-native'
+import { Platform } from 'react-native'
 import { API_BASE_URL_NORMALIZED } from '../config/env'
 import { logger } from './logger'
 import { compareVersion } from '../utils/version'
@@ -18,6 +18,12 @@ const VERSION_URL = `${API_BASE_URL_NORMALIZED}/api/wms/version`
 export type UpdateCheckResult = {
   shutdown: boolean
   shutdownMessage?: string
+  updateAvailable: boolean
+  mandatory?: boolean
+  latestVersion?: string
+  currentVersion?: string
+  changelog?: string
+  downloadUrl?: string
 }
 
 function isTruthyFlag(v: unknown): boolean {
@@ -26,43 +32,50 @@ function isTruthyFlag(v: unknown): boolean {
 
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
   // Este fluxo manual é para distribuição Android por APK.
-  if (Platform.OS !== 'android') return { shutdown: false }
+  if (Platform.OS !== 'android') return { shutdown: false, updateAvailable: false }
 
   try {
     const res = await fetch(VERSION_URL, {
       headers: { Accept: 'application/json', 'ngrok-skip-browser-warning': 'true' },
     })
-    if (!res.ok) return { shutdown: false }
+    if (!res.ok) return { shutdown: false, updateAvailable: false }
 
     const json = (await res.json()) as VersionCheckResponse
     if (isTruthyFlag(json.shutdown)) {
-      return { shutdown: true, shutdownMessage: json.shutdownMessage?.trim() || undefined }
+      return {
+        shutdown: true,
+        shutdownMessage: json.shutdownMessage?.trim() || undefined,
+        updateAvailable: false,
+      }
     }
 
     const latest = (json.version ?? '').trim()
     const current = (Application.nativeApplicationVersion ?? '').trim()
-    if (!latest || !current) return { shutdown: false }
-    if (compareVersion(latest, current) <= 0) return { shutdown: false }
+    if (!latest || !current) return { shutdown: false, updateAvailable: false }
+    if (compareVersion(latest, current) <= 0) {
+      return {
+        shutdown: false,
+        updateAvailable: false,
+        latestVersion: latest,
+        currentVersion: current,
+      }
+    }
     const downloadUrl = (json.downloadUrl ?? '').trim()
-    if (!downloadUrl) return { shutdown: false }
+    if (!downloadUrl) return { shutdown: false, updateAvailable: false }
 
     const mandatory = isTruthyFlag(json.mandatory)
-    const messageParts = [`Nova versao ${latest} disponivel.`]
-    if (json.changelog?.trim()) messageParts.push(json.changelog.trim())
-    if (mandatory) messageParts.push('Atualizacao obrigatoria.')
-
-    Alert.alert('Atualizacao disponivel', messageParts.join('\n\n'), [
-      ...(mandatory ? [] : [{ text: 'Agora nao', style: 'cancel' as const }]),
-      {
-        text: 'Baixar',
-        onPress: () => {
-          void Linking.openURL(downloadUrl)
-        },
-      },
-    ])
+    return {
+      shutdown: false,
+      updateAvailable: true,
+      mandatory,
+      latestVersion: latest,
+      currentVersion: current,
+      changelog: json.changelog?.trim() || undefined,
+      downloadUrl,
+    }
   } catch (e) {
     // silencioso para usuário; logado para diagnóstico
     logger.debug('Falha ao consultar versão de atualização.', e)
   }
-  return { shutdown: false }
+  return { shutdown: false, updateAvailable: false }
 }
