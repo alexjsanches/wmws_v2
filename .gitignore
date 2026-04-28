@@ -8,3 +8,8 @@ apps/mobile/android/app/build
 apps/mobile/android/build
 apps/mobile/android/.gradle
 apps/mobile/android/.cxx
+apps/mobile/android/app/google-services.json
+apps/mobile/google-services.json
+apps/mobile/android/app/*.jks
+apps/mobile/android/app/*.keystore
+apps/mobile/android/keystores/

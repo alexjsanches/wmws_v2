@@ -3,6 +3,11 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+def uploadStoreFile = findProperty('ANDROID_UPLOAD_STORE_FILE') ?: System.getenv('ANDROID_UPLOAD_STORE_FILE')
+def uploadKeyAlias = findProperty('ANDROID_UPLOAD_KEY_ALIAS') ?: System.getenv('ANDROID_UPLOAD_KEY_ALIAS')
+def uploadStorePassword = findProperty('ANDROID_UPLOAD_STORE_PASSWORD') ?: System.getenv('ANDROID_UPLOAD_STORE_PASSWORD')
+def uploadKeyPassword = findProperty('ANDROID_UPLOAD_KEY_PASSWORD') ?: System.getenv('ANDROID_UPLOAD_KEY_PASSWORD')
+def hasReleaseSigning = uploadStoreFile && uploadKeyAlias && uploadStorePassword && uploadKeyPassword
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -104,15 +109,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(uploadStoreFile)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (!hasReleaseSigning) {
+                throw new GradleException(
+                    'Release signing não configurado. Defina ANDROID_UPLOAD_STORE_FILE, ANDROID_UPLOAD_KEY_ALIAS, ANDROID_UPLOAD_STORE_PASSWORD e ANDROID_UPLOAD_KEY_PASSWORD.'
+                )
+            }
+            signingConfig signingConfigs.release
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
