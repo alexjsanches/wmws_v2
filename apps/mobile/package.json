@@ -17,6 +17,7 @@
     "@react-navigation/native-stack": "^7.3.14",
     "@wms/theme": "workspace:*",
     "expo": "~53.0.11",
+    "expo-application": "~6.1.5",
     "expo-constants": "~17.1.8",
     "expo-device": "~7.1.4",
     "expo-notifications": "~0.31.5",

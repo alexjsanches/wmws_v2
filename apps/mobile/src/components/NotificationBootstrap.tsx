@@ -24,6 +24,13 @@ function dataFromResponse(response: Notifications.NotificationResponse | null | 
   return null
 }
 
+function isUrgentNotificationData(data: Record<string, unknown> | null): boolean {
+  if (!data) return false
+  const priority = typeof data.priority === 'string' ? data.priority.toLowerCase() : ''
+  const type = typeof data.type === 'string' ? data.type.toLowerCase() : ''
+  return priority === 'urgent' || type === 'wms.alerta.urgente'
+}
+
 /**
  * Canal de notificação Android, handler em foreground, registo de token e deep link ao tocar.
  */
@@ -33,13 +40,17 @@ export function NotificationBootstrap() {
 
   useEffect(() => {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
+      handleNotification: async (notification) => {
+        const data = notification.request.content.data as Record<string, unknown> | null
+        const isUrgent = isUrgentNotificationData(data)
+        return {
+          shouldShowAlert: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: isUrgent,
+          shouldSetBadge: true,
+        }
+      },
     })
   }, [])
 

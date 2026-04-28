@@ -22,7 +22,14 @@
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B00",
+          "defaultChannel": "wms-default",
+          "sounds": []
+        }
+      ]
     ],
     "owner": "alexandrejsanches"
   }

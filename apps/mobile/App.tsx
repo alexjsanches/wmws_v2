@@ -1,5 +1,6 @@
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native'
 import { StatusBar } from 'expo-status-bar'
+import { useEffect } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { colors } from '@wms/theme'
@@ -10,6 +11,7 @@ import { consumeInitialNotificationNavigation } from './src/navigation/consumeIn
 import { navigationRef } from './src/navigation/navigationRef'
 import { MainTabs } from './src/navigation/MainTabs'
 import { LoginScreen } from './src/screens/LoginScreen'
+import { checkForUpdate } from './src/services/updateChecker'
 
 const navTheme = {
   ...DefaultTheme,
@@ -24,6 +26,10 @@ const navTheme = {
 }
 
 export default function App() {
+  useEffect(() => {
+    void checkForUpdate()
+  }, [])
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
