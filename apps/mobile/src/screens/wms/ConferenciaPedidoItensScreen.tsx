@@ -20,7 +20,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'ConferenciaPedidoItens'
 
 export function ConferenciaPedidoItensScreen({ navigation, route }: Props) {
   const { nunota, codemp, numnota } = route.params
-  const { items, loading, refreshing, criando, error, setRefreshing, load, iniciar } = usePedidoTaskBootstrap({
+  const { items, loading, refreshing, isStarting, error, setRefreshing, reload, startTaskFlow } = usePedidoTaskBootstrap({
     nunota,
     codemp,
     taskLabel: 'Conferência',
@@ -50,8 +50,8 @@ export function ConferenciaPedidoItensScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title={`Conferência · NF ${numnota ?? nunota}`} onBack={() => navigation.goBack()} />
       <View style={styles.rowPad}>
-        <Button variant="default" onPress={() => void iniciar()} disabled={criando}>
-          {criando ? 'A criar…' : 'Iniciar tarefa de conferência'}
+        <Button variant="default" onPress={() => void startTaskFlow()} disabled={isStarting}>
+          {isStarting ? 'A criar…' : 'Iniciar tarefa de conferência'}
         </Button>
       </View>
       {error ? (
@@ -62,7 +62,7 @@ export function ConferenciaPedidoItensScreen({ navigation, route }: Props) {
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.nuitem)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load() }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void reload() }} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>Sem itens no pedido.</Text>}
         renderItem={({ item }) => (

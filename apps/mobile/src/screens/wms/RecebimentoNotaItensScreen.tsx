@@ -34,7 +34,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
     setQtyModal,
     setQtyText,
     setRefreshing,
-    loadItens,
+    reload,
     createTask,
     openQtyModal,
     saveQty,
@@ -82,7 +82,7 @@ export function RecebimentoNotaItensScreen({ navigation, route }: Props) {
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.nuitem)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadItens() }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void reload() }} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>Sem itens retornados.</Text>}
         renderItem={({ item }) => (

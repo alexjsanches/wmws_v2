@@ -1,6 +1,5 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import { useCallback, useState } from 'react'
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
 import { Button } from '../components/ui/Button'
@@ -9,8 +8,8 @@ import { ScreenHeader } from '../components/ui/ScreenHeader'
 import { SelectField } from '../components/ui/SelectField'
 import { SnkField } from '../components/ui/SnkField'
 import { SnkSuggestionLookup } from '../components/ui/SnkSuggestionLookup'
+import { useAddArticle } from '../features/ferramentas/addArticle/useAddArticle'
 import type { MainTabParamList } from '../navigation/types'
-import { postRecebimentoTarefa } from '../services/wmsApi'
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Adicionar'>
 
@@ -20,34 +19,16 @@ const tipoOptions = [
 ]
 
 export function AddArticleScreen({ navigation }: Props) {
-  const [tipo, setTipo] = useState('')
-  const [nunota, setNunota] = useState('')
-  const [descrNunota, setDescrNunota] = useState('')
-  const [criando, setCriando] = useState(false)
-
-  const onTipoChange = useCallback((v: string) => {
-    setTipo(v)
-  }, [])
-
-  const criarRecebimentoEAbrir = useCallback(async () => {
-    const n = Number(String(nunota).trim())
-    if (!Number.isFinite(n) || n <= 0) {
-      Alert.alert('Recebimento', 'Informe a nota (NUNOTA) e use a lupa para validar.')
-      return
-    }
-    setCriando(true)
-    try {
-      const { nutarefa, codemp } = await postRecebimentoTarefa({ nunota: n })
-      navigation.navigate('Home', {
-        screen: 'RecebimentoNotaItens',
-        params: { nunota: n, codemp, nutarefa },
-      })
-    } catch (e) {
-      Alert.alert('Recebimento', e instanceof Error ? e.message : 'Não foi possível criar a tarefa.')
-    } finally {
-      setCriando(false)
-    }
-  }, [nunota, navigation])
+  const {
+    tipo,
+    nunota,
+    descrNunota,
+    criando,
+    setNunota,
+    setDescrNunota,
+    onTipoChange,
+    criarRecebimentoEAbrir,
+  } = useAddArticle(navigation)
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -105,5 +86,4 @@ export function AddArticleScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: space.lg, paddingBottom: space.xl * 2 },
-  hint: { fontSize: 14, color: colors.textMuted, marginTop: space.xs },
 })

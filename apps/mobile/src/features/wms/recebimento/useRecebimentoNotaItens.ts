@@ -25,7 +25,7 @@ export function useRecebimentoNotaItens(params: {
   const [qtyModal, setQtyModal] = useState<{ item: ItemNota } | null>(null)
   const [qtyText, setQtyText] = useState('')
 
-  const loadItens = useCallback(async () => {
+  const reload = useCallback(async () => {
     setError(null)
     try {
       const data = await loadRecebimentoNotaItensUseCase(nunota)
@@ -40,18 +40,18 @@ export function useRecebimentoNotaItens(params: {
   }, [nunota])
 
   useEffect(() => {
-    void loadItens()
-  }, [loadItens])
+    void reload()
+  }, [reload])
 
   const createTask = useCallback(async () => {
     try {
       const nu = await createRecebimentoTaskUseCase({ nunota, codemp })
       setNutarefa(nu)
-      await loadItens()
+      await reload()
     } catch (e) {
       showWmsError('Recebimento', e, 'Erro ao criar tarefa')
     }
-  }, [codemp, loadItens, nunota])
+  }, [codemp, reload, nunota])
 
   const openQtyModal = useCallback((item: ItemNota) => {
     if (!nutarefa) {
@@ -71,7 +71,7 @@ export function useRecebimentoNotaItens(params: {
         qtyText,
       })
       setQtyModal(null)
-      await loadItens()
+      await reload()
     } catch (e) {
       if (isDomainError(e) && (e.code === 'RECEBIMENTO_QTY_INVALID' || e.code === 'RECEBIMENTO_TASK_REQUIRED')) {
         Alert.alert('Recebimento', e.message)
@@ -79,7 +79,7 @@ export function useRecebimentoNotaItens(params: {
       }
       showWmsError('Recebimento', e, 'Erro ao salvar')
     }
-  }, [loadItens, nutarefa, qtyModal, qtyText])
+  }, [reload, nutarefa, qtyModal, qtyText])
 
   const concludeTask = useCallback(() => {
     if (!nutarefa) {
@@ -116,7 +116,7 @@ export function useRecebimentoNotaItens(params: {
     setQtyModal,
     setQtyText,
     setRefreshing,
-    loadItens,
+    reload,
     createTask,
     openQtyModal,
     saveQty,

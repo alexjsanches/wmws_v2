@@ -19,7 +19,7 @@ export function useConferenciaTaskScreen(params: { nutarefa: number; onConcluded
   const [qtdVolumeText, setQtdVolumeText] = useState('1')
   const [obsNovoVolume, setObsNovoVolume] = useState('')
 
-  const loadItens = useCallback(async () => {
+  const reload = useCallback(async () => {
     setError(null)
     try {
       const data = await loadConferenciaTaskUseCase(nutarefa)
@@ -34,19 +34,19 @@ export function useConferenciaTaskScreen(params: { nutarefa: number; onConcluded
   }, [nutarefa])
 
   useEffect(() => {
-    void loadItens()
-  }, [loadItens])
+    void reload()
+  }, [reload])
 
   const aplicarQuantidade = useCallback(
     async (item: ItemTarefaWms, qtd: number) => {
       try {
         await applyConferenciaItemQtyUseCase({ nutarefa, item, qtd })
-        await loadItens()
+        await reload()
       } catch (e) {
         showWmsError('Conferência', e, 'Erro ao salvar')
       }
     },
-    [loadItens, nutarefa],
+    [reload, nutarefa],
   )
 
   const flow = useTaskExecutionFlow({
@@ -66,7 +66,7 @@ export function useConferenciaTaskScreen(params: { nutarefa: number; onConcluded
     }
   }, [loadVolumes, modo])
 
-  const confirmConclusion = useCallback(async () => {
+  const concludeTask = useCallback(async () => {
     try {
       await concludeConferenciaTaskUseCase({ nutarefa, payload: buildPayload() })
       setFechamentoModalOpen(false)
@@ -76,7 +76,7 @@ export function useConferenciaTaskScreen(params: { nutarefa: number; onConcluded
     }
   }, [buildPayload, nutarefa, onConcluded, setFechamentoModalOpen])
 
-  const addCurrentItemToOpenVolume = useCallback(() => {
+  const addCurrentItemToVolume = useCallback(() => {
     if (!flow.itemAtual) return
     const qtd = Number(String(qtdVolumeText).replace(',', '.'))
     if (!Number.isFinite(qtd) || qtd <= 0) {
@@ -92,13 +92,13 @@ export function useConferenciaTaskScreen(params: { nutarefa: number; onConcluded
     refreshing,
     error,
     setRefreshing,
-    loadItens,
+    reload,
     qtdVolumeText,
     setQtdVolumeText,
     obsNovoVolume,
     setObsNovoVolume,
-    confirmConclusion,
-    addCurrentItemToOpenVolume,
+    concludeTask,
+    addCurrentItemToVolume,
     flow,
     fechamento,
     volumes,

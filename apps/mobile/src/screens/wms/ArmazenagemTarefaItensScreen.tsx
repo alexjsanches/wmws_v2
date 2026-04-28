@@ -36,7 +36,7 @@ export function ArmazenagemTarefaItensScreen({ navigation, route }: Props) {
     setQtd,
     setLocalLivre,
     setRefreshing,
-    load,
+    reload,
     openModal,
     saveItem,
     concludeTask,
@@ -70,7 +70,7 @@ export function ArmazenagemTarefaItensScreen({ navigation, route }: Props) {
         data={items}
         keyExtractor={(item) => String(item.nuitem)}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load() }} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void reload() }} />
         }
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>Sem itens.</Text>}

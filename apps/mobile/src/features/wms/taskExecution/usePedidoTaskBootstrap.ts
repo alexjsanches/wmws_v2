@@ -20,10 +20,10 @@ export function usePedidoTaskBootstrap(params: {
   const [items, setItems] = useState<ItemTarefaWms[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [criando, setCriando] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
+  const reload = useCallback(async () => {
     setError(null)
     try {
       const data = await loadItems(nunota)
@@ -38,11 +38,11 @@ export function usePedidoTaskBootstrap(params: {
   }, [loadItems, nunota])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void reload()
+  }, [reload])
 
-  const iniciar = useCallback(async () => {
-    setCriando(true)
+  const startTaskFlow = useCallback(async () => {
+    setIsStarting(true)
     try {
       const res = await startTask({ nunota, codemp })
       const taskCode = taskLabel === 'Conferência' ? 'CON' : 'SEP'
@@ -51,7 +51,7 @@ export function usePedidoTaskBootstrap(params: {
     } catch (e) {
       showWmsError(taskLabel, e, 'Erro ao criar tarefa')
     } finally {
-      setCriando(false)
+      setIsStarting(false)
     }
   }, [codemp, nunota, onTaskOpened, startTask, taskLabel])
 
@@ -59,10 +59,10 @@ export function usePedidoTaskBootstrap(params: {
     items,
     loading,
     refreshing,
-    criando,
+    isStarting,
     error,
     setRefreshing,
-    load,
-    iniciar,
+    reload,
+    startTaskFlow,
   }
 }

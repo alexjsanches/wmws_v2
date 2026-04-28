@@ -1,6 +1,6 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, radii, space } from '@wms/theme'
@@ -8,59 +8,15 @@ import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { ScreenHeader } from '../components/ui/ScreenHeader'
+import { displayEmailProfile, displayNameProfile, useProfileSettings } from '../features/perfil/useProfileSettings'
 import type { MainTabParamList } from '../navigation/types'
-import { getPushNotificationsOptIn, setPushNotificationsOptIn } from '../services/pushSettingsStorage'
-import { registerWmsPushNow } from '../services/registerWmsPushNow'
-import type { ProfileResponse } from '../types/api'
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Perfil'>
 
-function displayName(p: ProfileResponse | null): string {
-  if (!p) return 'Usuário'
-  const o = p as Record<string, unknown>
-  const a = o.nomeusu ?? o.nome ?? o.NOMEUSU ?? o.nomeUsu
-  return typeof a === 'string' && a.trim() ? a : 'Usuário'
-}
-
-function displayEmail(p: ProfileResponse | null): string | undefined {
-  if (!p) return undefined
-  const o = p as Record<string, unknown>
-  const e = o.email ?? o.EMAIL
-  return typeof e === 'string' ? e : undefined
-}
-
-function pushRegisterHint(reason: string): string {
-  if (reason === 'opt_out') return 'Ative o interruptor para registar o dispositivo.'
-  if (reason === 'permission_denied') return 'Permissão de notificações negada nas definições do sistema.'
-  if (reason === 'no_token') return 'Token push indisponível (simulador ou build sem EAS projectId / dev build).'
-  if (reason === 'server_error') return 'O servidor recusou o registo do token (path ou contrato — ver notificações no backend).'
-  return 'Não foi possível sincronizar com o servidor.'
-}
-
 export function ProfileScreen({ navigation }: Props) {
   const { user: authUser, logout } = useAuth()
-  const [notifications, setNotifications] = useState(true)
-  const [pushRegisterHintText, setPushRegisterHintText] = useState<string | null>(null)
-
-  useEffect(() => {
-    void getPushNotificationsOptIn().then(setNotifications)
-  }, [])
-
-  const onNotificationsChange = useCallback(async (enabled: boolean) => {
-    setNotifications(enabled)
-    setPushRegisterHintText(null)
-    await setPushNotificationsOptIn(enabled)
-    if (!enabled) return
-    const r = await registerWmsPushNow()
-    if (!r.ok) setPushRegisterHintText(pushRegisterHint(r.reason))
-  }, [])
-
-  const subtitle = useMemo(() => {
-    if (!authUser) return ''
-    const o = authUser as Record<string, unknown>
-    const perfil = o.perfil ?? o.PERFIL ?? o.role
-    return typeof perfil === 'string' ? perfil : 'Operador WMS'
-  }, [authUser])
+  const { notifications, pushRegisterHintText, onNotificationsChange, subtitle } = useProfileSettings(authUser)
+  const email = useMemo(() => displayEmailProfile(authUser), [authUser])
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -72,11 +28,11 @@ export function ProfileScreen({ navigation }: Props) {
               <MaterialCommunityIcons name="account" size={36} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{displayName(authUser)}</Text>
+              <Text style={styles.name}>{displayNameProfile(authUser)}</Text>
               <Text style={styles.role}>{subtitle}</Text>
             </View>
           </View>
-          {displayEmail(authUser) ? <Text style={styles.meta}>{displayEmail(authUser)}</Text> : null}
+          {email ? <Text style={styles.meta}>{email}</Text> : null}
           <Text style={styles.metaMuted}>Dados carregados do servidor (Sankhya).</Text>
         </Card>
 

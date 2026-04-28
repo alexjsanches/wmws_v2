@@ -19,7 +19,7 @@ export function useArmazenagemTaskItems(params: { nutarefa: number; onConcluded?
   const [qtd, setQtd] = useState('')
   const [localLivre, setLocalLivre] = useState('')
 
-  const load = useCallback(async () => {
+  const reload = useCallback(async () => {
     setError(null)
     try {
       const data = await loadArmazenagemTaskItemsUseCase(nutarefa)
@@ -34,8 +34,8 @@ export function useArmazenagemTaskItems(params: { nutarefa: number; onConcluded?
   }, [nutarefa])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void reload()
+  }, [reload])
 
   const openModal = useCallback((item: ItemArmazenagem) => {
     setQtd(item.qtdrealizada != null ? String(item.qtdrealizada) : String(item.qtdprevista))
@@ -53,7 +53,7 @@ export function useArmazenagemTaskItems(params: { nutarefa: number; onConcluded?
         localLivreText: localLivre,
       })
       setModal(null)
-      await load()
+      await reload()
     } catch (e) {
       if (isDomainError(e) && e.code === 'ARMAZENAGEM_QTY_INVALID') {
         Alert.alert('Armazenagem', e.message)
@@ -61,7 +61,7 @@ export function useArmazenagemTaskItems(params: { nutarefa: number; onConcluded?
       }
       showWmsError('Armazenagem', e, 'Erro ao salvar')
     }
-  }, [load, localLivre, modal, nutarefa, qtd])
+  }, [reload, localLivre, modal, nutarefa, qtd])
 
   const concludeTask = useCallback(() => {
     showWmsConfirm(
@@ -91,7 +91,7 @@ export function useArmazenagemTaskItems(params: { nutarefa: number; onConcluded?
     setQtd,
     setLocalLivre,
     setRefreshing,
-    load,
+    reload,
     openModal,
     saveItem,
     concludeTask,

@@ -22,13 +22,13 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
     refreshing,
     error,
     setRefreshing,
-    loadItens,
+    reload,
     qtdVolumeText,
     setQtdVolumeText,
     obsNovoVolume,
     setObsNovoVolume,
-    confirmConclusion,
-    addCurrentItemToOpenVolume,
+    concludeTask,
+    addCurrentItemToVolume,
     flow,
     fechamento,
     volumes,
@@ -53,7 +53,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
       />
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadItens() }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void reload() }} />}
       >
         <TaskProgressoCard titulo="Progresso da conferência" totais={flow.totais} />
 
@@ -174,7 +174,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
             />
             <Button
               disabled={!flow.itemAtual || !volumes.volumeAberto}
-              onPress={addCurrentItemToOpenVolume}
+              onPress={addCurrentItemToVolume}
             >
               Adicionar item atual
             </Button>
@@ -204,7 +204,7 @@ export function ConferenciaTarefaItensScreen({ navigation, route }: Props) {
       <ConferenciaFechamentoModal
         visible={fechamento.fechamentoModalOpen}
         onClose={() => fechamento.setFechamentoModalOpen(false)}
-        onConfirm={() => void confirmConclusion()}
+        onConfirm={() => void concludeTask()}
         enderecoExpedicao={fechamento.enderecoExpedicao}
         setEnderecoExpedicao={fechamento.setEnderecoExpedicao}
         pesoBruto={fechamento.pesoBruto}

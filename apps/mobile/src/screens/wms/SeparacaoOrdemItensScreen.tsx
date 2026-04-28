@@ -20,7 +20,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'SeparacaoOrdemItens'>
 
 export function SeparacaoOrdemItensScreen({ navigation, route }: Props) {
   const { nunota, codemp, numnota } = route.params
-  const { items, loading, refreshing, criando, error, setRefreshing, load, iniciar } = usePedidoTaskBootstrap({
+  const { items, loading, refreshing, isStarting, error, setRefreshing, reload, startTaskFlow } = usePedidoTaskBootstrap({
     nunota,
     codemp,
     taskLabel: 'Separação',
@@ -50,8 +50,8 @@ export function SeparacaoOrdemItensScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader title={`Separação · NF ${numnota ?? nunota}`} onBack={() => navigation.goBack()} />
       <View style={styles.rowPad}>
-        <Button variant="default" onPress={() => void iniciar()} disabled={criando}>
-          {criando ? 'A criar…' : 'Iniciar tarefa de separação'}
+        <Button variant="default" onPress={() => void startTaskFlow()} disabled={isStarting}>
+          {isStarting ? 'A criar…' : 'Iniciar tarefa de separação'}
         </Button>
       </View>
       {error ? (
@@ -62,7 +62,7 @@ export function SeparacaoOrdemItensScreen({ navigation, route }: Props) {
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.nuitem)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load() }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void reload() }} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={<Text style={styles.empty}>Sem itens na ordem.</Text>}
         renderItem={({ item }) => (
