@@ -1,23 +1,58 @@
-import { useEffect, useRef } from 'react'
-import { Animated, StyleSheet, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { Animated, Easing, StyleSheet, View } from 'react-native'
 import { colors } from '@wms/theme'
 
 export type SnkLoadingBarProps = {
   loading: boolean
+  mode?: 'determinate' | 'indeterminate'
 }
 
 /**
  * Barra fina no topo (equivalente conceitual ao interceptor HTTP / loading-bar do Sankhya).
  * Não anima “fechar” na montagem com `loading === false`.
  */
-export function SnkLoadingBar({ loading }: SnkLoadingBarProps) {
+export function SnkLoadingBar({ loading, mode = 'determinate' }: SnkLoadingBarProps) {
   const progress = useRef(new Animated.Value(0)).current
   const opacity = useRef(new Animated.Value(0)).current
+  const runner = useRef(new Animated.Value(0)).current
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null)
+  const [trackWidth, setTrackWidth] = useState(0)
   const wasLoadingRef = useRef(false)
 
   useEffect(() => {
     progress.stopAnimation()
     opacity.stopAnimation()
+    runner.stopAnimation()
+    loopRef.current?.stop()
+    loopRef.current = null
+
+    if (mode === 'indeterminate') {
+      if (loading) {
+        opacity.setValue(1)
+        runner.setValue(0)
+        const loop = Animated.loop(
+          Animated.timing(runner, {
+            toValue: 1,
+            duration: 900,
+            easing: Easing.linear,
+            // JS driver evita conflito com estilos de largura nesta mesma view.
+            useNativeDriver: false,
+          }),
+        )
+        loopRef.current = loop
+        loop.start()
+      } else {
+        opacity.setValue(0)
+        runner.setValue(0)
+      }
+      wasLoadingRef.current = loading
+      return () => {
+        progress.stopAnimation()
+        opacity.stopAnimation()
+        runner.stopAnimation()
+        loopRef.current?.stop()
+      }
+    }
 
     if (loading) {
       progress.setValue(0)
@@ -48,9 +83,33 @@ export function SnkLoadingBar({ loading }: SnkLoadingBarProps) {
     outputRange: ['0%', '100%'],
   })
 
+  const indeterminateSegmentWidth = Math.max(trackWidth * 0.35, 40)
+  const indeterminateTranslateX = runner.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-indeterminateSegmentWidth, trackWidth],
+  })
+
   return (
-    <View style={styles.track} pointerEvents="box-none">
-      <Animated.View pointerEvents="none" style={[styles.bar, { width, opacity }]} />
+    <View
+      style={styles.track}
+      pointerEvents="box-none"
+      onLayout={(evt) => setTrackWidth(evt.nativeEvent.layout.width)}
+    >
+      {mode === 'indeterminate' ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.bar,
+            {
+              width: indeterminateSegmentWidth,
+              opacity,
+              transform: [{ translateX: indeterminateTranslateX }],
+            },
+          ]}
+        />
+      ) : (
+        <Animated.View pointerEvents="none" style={[styles.bar, { width, opacity }]} />
+      )}
     </View>
   )
 }

@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import { useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -14,6 +15,7 @@ import { Card } from '../components/ui/Card'
 import { ScreenHeader } from '../components/ui/ScreenHeader'
 import { SnkField } from '../components/ui/SnkField'
 import { SnkSuggestionLookup } from '../components/ui/SnkSuggestionLookup'
+import { SnkTable, type SnkColumnDef, type SnkSortState } from '../components/ui/SnkTable'
 import { useConsultaProduto, type AbaConsultaProduto } from '../features/ferramentas/consultaProduto/useConsultaProduto'
 import type { FerramentasStackParamList } from '../navigation/types'
 
@@ -41,7 +43,59 @@ function linhaRotuloValor(rotulo: string, valor: string) {
   )
 }
 
+type EstoqueRow = Record<string, unknown> & {
+  id: string
+  CODEMP: number
+  CODLOCAL: number
+  ESTOQUE: number
+  RESERVADO: number
+  DISPONIVEL: number
+  CONTROLE: string
+}
+type ReservaRow = Record<string, unknown> & {
+  id: string
+  NUNOTA: number
+  CODEMP: number
+  QTD: number
+  CODTIPOPER: number | null
+  TIPMOV: string
+  DESCRICAOTOP: string
+}
+type EntradaRow = Record<string, unknown> & {
+  id: string
+  NUNOTA: number | null
+  QTD: number
+  CODTIPOPER: number | null
+  DESCRICAOTOP: string
+}
+
+const ESTOQUE_COLUMNS: SnkColumnDef<EstoqueRow>[] = [
+  { field: 'CODEMP', header: 'Cód. em', dataType: 'I', width: 68 },
+  { field: 'CODLOCAL', header: 'Local', dataType: 'I', width: 70 },
+  { field: 'ESTOQUE', header: 'Estoque', dataType: 'F', width: 88 },
+  { field: 'RESERVADO', header: 'Reservado', dataType: 'F', width: 100 },
+  { field: 'DISPONIVEL', header: 'Disponível', dataType: 'F', width: 98 },
+  { field: 'CONTROLE', header: 'Controle', dataType: 'S', width: 90 },
+]
+const RESERVA_COLUMNS: SnkColumnDef<ReservaRow>[] = [
+  { field: 'NUNOTA', header: 'Nota', dataType: 'I', width: 104 },
+  { field: 'CODEMP', header: 'Emp.', dataType: 'I', width: 62 },
+  { field: 'QTD', header: 'Quantidade', dataType: 'F', width: 96 },
+  { field: 'CODTIPOPER', header: 'TOP', dataType: 'I', width: 64, valueFormatter: (v) => (v == null ? '' : String(v)) },
+  { field: 'TIPMOV', header: 'Tip. mov.', dataType: 'S', width: 84 },
+  { field: 'DESCRICAOTOP', header: 'Operação', dataType: 'S', width: 180 },
+]
+const ENTRADA_COLUMNS: SnkColumnDef<EntradaRow>[] = [
+  { field: 'NUNOTA', header: 'Nota', dataType: 'I', width: 104, valueFormatter: (v) => (v == null ? '' : String(v)) },
+  { field: 'QTD', header: 'Quantidade', dataType: 'F', width: 96 },
+  { field: 'CODTIPOPER', header: 'TOP', dataType: 'I', width: 64, valueFormatter: (v) => (v == null ? '' : String(v)) },
+  { field: 'DESCRICAOTOP', header: 'Descrição', dataType: 'S', width: 220 },
+]
+
 export function ConsultaProdutoScreen({ navigation }: Props) {
+  const [estoqueSort, setEstoqueSort] = useState<SnkSortState>({ field: 'CODLOCAL', direction: 'asc' })
+  const [reservasSort, setReservasSort] = useState<SnkSortState>({ field: 'NUNOTA', direction: 'desc' })
+  const [entradasSort, setEntradasSort] = useState<SnkSortState>({ field: 'NUNOTA', direction: 'desc' })
   const {
     codProd,
     setCodProd,
@@ -83,20 +137,49 @@ export function ConsultaProdutoScreen({ navigation }: Props) {
       if (estoque.length === 0) {
         return <Text style={styles.muted}>Nenhuma linha de estoque retornada.</Text>
       }
+      const rows: EstoqueRow[] = estoque.map((e, i) => ({
+        id: `${e.codemp}-${e.codlocal}-${e.controle ?? ''}-${i}`,
+        CODEMP: e.codemp,
+        CODLOCAL: e.codlocal,
+        ESTOQUE: e.estoque,
+        RESERVADO: e.reservado,
+        DISPONIVEL: e.disponivel,
+        CONTROLE: e.controle || '',
+      }))
+      const sortedRows = [...rows]
+      if (estoqueSort.field && estoqueSort.direction) {
+        const mult = estoqueSort.direction === 'asc' ? 1 : -1
+        sortedRows.sort((a, b) => {
+          const va = a[estoqueSort.field as keyof EstoqueRow]
+          const vb = b[estoqueSort.field as keyof EstoqueRow]
+          if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult
+          return String(va ?? '').localeCompare(String(vb ?? ''), 'pt-BR') * mult
+        })
+      }
+      const summary: EstoqueRow = {
+        id: '__summary__',
+        CODEMP: 0,
+        CODLOCAL: 0,
+        ESTOQUE: rows.reduce((acc, r) => acc + (r.ESTOQUE || 0), 0),
+        RESERVADO: rows.reduce((acc, r) => acc + (r.RESERVADO || 0), 0),
+        DISPONIVEL: rows.reduce((acc, r) => acc + (r.DISPONIVEL || 0), 0),
+        CONTROLE: '',
+      }
       return (
-        <View style={styles.lista}>
-          {estoque.map((e, i) => (
-            <Card key={`${e.codemp}-${e.codlocal}-${e.controle ?? ''}-${i}`} style={styles.cardInner}>
-              <Text style={styles.cardTitle}>
-                Emp. {e.codemp} · Local {e.codlocal}
-                {e.controle ? ` · ${e.controle}` : ''}
-              </Text>
-              {linhaRotuloValor('Estoque', fmtNum(e.estoque))}
-              {linhaRotuloValor('Reservado', fmtNum(e.reservado))}
-              {linhaRotuloValor('Disponível', fmtNum(e.disponivel))}
-            </Card>
-          ))}
-        </View>
+        <SnkTable<EstoqueRow>
+          embedded
+          columns={ESTOQUE_COLUMNS}
+          data={sortedRows}
+          keyExtractor={(row) => row.id}
+          minWidth={514}
+          style={styles.estoqueTable}
+          emptyText="Nenhuma linha de estoque retornada."
+          summaryRow={summary}
+          summaryLabel="Total"
+          summaryLabelColumn="CODEMP"
+          sortState={estoqueSort}
+          onSortChange={setEstoqueSort}
+        />
       )
     }
 
@@ -104,19 +187,37 @@ export function ConsultaProdutoScreen({ navigation }: Props) {
       if (reservas.length === 0) {
         return <Text style={styles.muted}>Sem reservas para este produto.</Text>
       }
+      const rows: ReservaRow[] = reservas.map((r, i) => ({
+        id: `${r.nunota}-${i}`,
+        NUNOTA: r.nunota,
+        CODEMP: r.codemp,
+        QTD: r.qtd,
+        CODTIPOPER: r.codtipoper,
+        TIPMOV: r.tipmov || '',
+        DESCRICAOTOP: r.descricaoTop || '',
+      }))
+      const sortedRows = [...rows]
+      if (reservasSort.field && reservasSort.direction) {
+        const mult = reservasSort.direction === 'asc' ? 1 : -1
+        sortedRows.sort((a, b) => {
+          const va = a[reservasSort.field as keyof ReservaRow]
+          const vb = b[reservasSort.field as keyof ReservaRow]
+          if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult
+          return String(va ?? '').localeCompare(String(vb ?? ''), 'pt-BR') * mult
+        })
+      }
       return (
-        <View style={styles.lista}>
-          {reservas.map((r, i) => (
-            <Card key={`${r.nunota}-${i}`} style={styles.cardInner}>
-              <Text style={styles.cardTitle}>Nota {r.nunota}</Text>
-              {linhaRotuloValor('Empresa', String(r.codemp))}
-              {linhaRotuloValor('Quantidade', fmtNum(r.qtd))}
-              {r.codtipoper !== null ? linhaRotuloValor('TOP', String(r.codtipoper)) : null}
-              {r.tipmov ? linhaRotuloValor('Tip. mov.', r.tipmov) : null}
-              {linhaRotuloValor('Operação', r.descricaoTop || '—')}
-            </Card>
-          ))}
-        </View>
+        <SnkTable<ReservaRow>
+          embedded
+          columns={RESERVA_COLUMNS}
+          data={sortedRows}
+          keyExtractor={(row) => row.id}
+          minWidth={558}
+          style={styles.estoqueTable}
+          emptyText="Sem reservas para este produto."
+          sortState={reservasSort}
+          onSortChange={setReservasSort}
+        />
       )
     }
 
@@ -124,17 +225,35 @@ export function ConsultaProdutoScreen({ navigation }: Props) {
       if (entradasPendentes.length === 0) {
         return <Text style={styles.muted}>Sem entradas pendentes.</Text>
       }
+      const rows: EntradaRow[] = entradasPendentes.map((en, i) => ({
+        id: `${en.nunota ?? 'x'}-${i}`,
+        NUNOTA: en.nunota,
+        QTD: en.qtd,
+        CODTIPOPER: en.codtipoper,
+        DESCRICAOTOP: en.descricaoTop || '',
+      }))
+      const sortedRows = [...rows]
+      if (entradasSort.field && entradasSort.direction) {
+        const mult = entradasSort.direction === 'asc' ? 1 : -1
+        sortedRows.sort((a, b) => {
+          const va = a[entradasSort.field as keyof EntradaRow]
+          const vb = b[entradasSort.field as keyof EntradaRow]
+          if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mult
+          return String(va ?? '').localeCompare(String(vb ?? ''), 'pt-BR') * mult
+        })
+      }
       return (
-        <View style={styles.lista}>
-          {entradasPendentes.map((en, i) => (
-            <Card key={`${en.nunota ?? 'x'}-${i}`} style={styles.cardInner}>
-              {en.nunota !== null ? linhaRotuloValor('Nota', String(en.nunota)) : null}
-              {linhaRotuloValor('Quantidade', fmtNum(en.qtd))}
-              {en.codtipoper !== null ? linhaRotuloValor('TOP', String(en.codtipoper)) : null}
-              {linhaRotuloValor('Descrição', en.descricaoTop || '—')}
-            </Card>
-          ))}
-        </View>
+        <SnkTable<EntradaRow>
+          embedded
+          columns={ENTRADA_COLUMNS}
+          data={sortedRows}
+          keyExtractor={(row) => row.id}
+          minWidth={452}
+          style={styles.estoqueTable}
+          emptyText="Sem entradas pendentes."
+          sortState={entradasSort}
+          onSortChange={setEntradasSort}
+        />
       )
     }
 
@@ -226,6 +345,7 @@ const styles = StyleSheet.create({
   placeholder: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
   muted: { fontSize: 14, color: colors.textMuted },
   lista: { gap: space.md },
+  estoqueTable: { minHeight: 180 },
   cardInner: { padding: space.md, gap: space.xs },
   cardTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: space.xs },
   kvRow: {

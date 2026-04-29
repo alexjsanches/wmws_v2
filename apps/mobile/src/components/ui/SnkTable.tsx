@@ -40,12 +40,17 @@ export type SnkTableProps<T extends Record<string, unknown>> = {
   loading?: boolean
   emptyText?: string
   selectedKeys?: Set<string>
+  enableLongPressSelection?: boolean
   onRowPress?: (row: T) => void
   onRowLongPress?: (row: T) => void
   onSelectionChange?: (keys: Set<string>) => void
   onSortChange?: (sort: SnkSortState) => void
   sortState?: SnkSortState
   minWidth?: number
+  zebra?: boolean
+  summaryRow?: T | null
+  summaryLabel?: string
+  summaryLabelColumn?: keyof T & string
   /**
    * `true` = linhas com `map` em vez de `FlatList` — use dentro de `ScrollView` vertical
    * para evitar listas virtualizadas aninhadas.
@@ -174,12 +179,17 @@ export function SnkTable<T extends Record<string, unknown>>({
   loading = false,
   emptyText = 'Nenhum registro encontrado',
   selectedKeys,
+  enableLongPressSelection = false,
   onRowPress,
   onRowLongPress,
   onSelectionChange,
   onSortChange,
   sortState,
   minWidth,
+  zebra = true,
+  summaryRow = null,
+  summaryLabel = 'Total',
+  summaryLabelColumn,
   embedded = false,
   style,
 }: SnkTableProps<T>) {
@@ -218,6 +228,10 @@ export function SnkTable<T extends Record<string, unknown>>({
 
   const handleRowLongPress = useCallback(
     (row: T) => {
+      if (!enableLongPressSelection) {
+        onRowLongPress?.(row)
+        return
+      }
       if (!multiSelectActive) {
         setMultiSelectActive(true)
         const key = keyExtractor(row)
@@ -225,7 +239,7 @@ export function SnkTable<T extends Record<string, unknown>>({
       }
       onRowLongPress?.(row)
     },
-    [multiSelectActive, keyExtractor, onRowLongPress, updateSelection],
+    [enableLongPressSelection, multiSelectActive, keyExtractor, onRowLongPress, updateSelection],
   )
 
   const exitMultiSelect = useCallback(() => {
@@ -258,7 +272,7 @@ export function SnkTable<T extends Record<string, unknown>>({
   const tableWidth = useMemo(() => Math.max(totalWidth, minWidth ?? 0), [totalWidth, minWidth])
 
   const renderRowContent = useCallback(
-    (item: T) => {
+    (item: T, isSummary = false) => {
       const key = keyExtractor(item)
       const isSelected = selected.has(key)
 
@@ -275,31 +289,40 @@ export function SnkTable<T extends Record<string, unknown>>({
           ) : null}
           {columns.map((col, i) => {
             const raw = item[col.field]
-            const text = col.valueFormatter ? col.valueFormatter(raw, item) : formatCell(raw, col.dataType)
+            const text =
+              isSummary && summaryLabelColumn && col.field === summaryLabelColumn
+                ? summaryLabel
+                : col.valueFormatter
+                  ? col.valueFormatter(raw, item)
+                  : formatCell(raw, col.dataType)
             return <DataCell key={col.field} value={text} align={resolveAlign(col)} width={colWidths[i]} />
           })}
         </>
       )
     },
-    [columns, colWidths, selected, multiSelectActive, keyExtractor],
+    [columns, colWidths, selected, multiSelectActive, keyExtractor, summaryLabel, summaryLabelColumn],
   )
 
   const renderRow = useCallback<ListRenderItem<T>>(
-    ({ item }) => {
+    ({ item, index }) => {
       const key = keyExtractor(item)
       const isSelected = selected.has(key)
       return (
         <Pressable
           onPress={() => handleRowPress(item)}
           onLongPress={() => handleRowLongPress(item)}
-          style={[styles.row, isSelected && styles.rowSelected]}
+          style={[
+            styles.row,
+            zebra && (index % 2 === 0 ? styles.rowEven : styles.rowOdd),
+            isSelected && styles.rowSelected,
+          ]}
           accessibilityRole="button"
         >
           {renderRowContent(item)}
         </Pressable>
       )
     },
-    [handleRowLongPress, handleRowPress, keyExtractor, renderRowContent, selected],
+    [handleRowLongPress, handleRowPress, keyExtractor, renderRowContent, selected, zebra],
   )
 
   const ListEmpty = useCallback(
@@ -331,13 +354,14 @@ export function SnkTable<T extends Record<string, unknown>>({
 
   const bodyEmbedded = useMemo(
     () =>
-      data.map((item) => (
+      data.map((item, index) => (
         <Pressable
           key={keyExtractor(item)}
           onPress={() => handleRowPress(item)}
           onLongPress={() => handleRowLongPress(item)}
           style={({ pressed }) => [
             styles.row,
+            zebra && (index % 2 === 0 ? styles.rowEven : styles.rowOdd),
             selected.has(keyExtractor(item)) && styles.rowSelected,
             pressed && styles.rowPressed,
           ]}
@@ -346,7 +370,7 @@ export function SnkTable<T extends Record<string, unknown>>({
           {renderRowContent(item)}
         </Pressable>
       )),
-    [data, handleRowLongPress, handleRowPress, keyExtractor, renderRowContent, selected],
+    [data, handleRowLongPress, handleRowPress, keyExtractor, renderRowContent, selected, zebra],
   )
 
   return (
@@ -366,13 +390,29 @@ export function SnkTable<T extends Record<string, unknown>>({
           {loading && data.length === 0 ? (
             <ListEmpty />
           ) : embedded ? (
-            <View>{data.length === 0 ? <ListEmpty /> : bodyEmbedded}</View>
+            <View>
+              {data.length === 0 ? <ListEmpty /> : bodyEmbedded}
+              {summaryRow ? (
+                <View style={[styles.row, styles.summaryRow]}>
+                  {multiSelectActive ? <View style={styles.checkWrap} /> : null}
+                  {renderRowContent(summaryRow, true)}
+                </View>
+              ) : null}
+            </View>
           ) : (
             <FlatList
               data={data}
               keyExtractor={keyExtractor}
               renderItem={renderRow}
               ListEmptyComponent={ListEmpty}
+              ListFooterComponent={
+                summaryRow ? (
+                  <View style={[styles.row, styles.summaryRow]}>
+                    {multiSelectActive ? <View style={styles.checkWrap} /> : null}
+                    {renderRowContent(summaryRow, true)}
+                  </View>
+                ) : null
+              }
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
               scrollEventThrottle={16}
@@ -423,8 +463,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  rowEven: { backgroundColor: colors.surface },
+  rowOdd: { backgroundColor: colors.background },
   rowSelected: {
     backgroundColor: colors.primaryMuted,
+  },
+  summaryRow: {
+    backgroundColor: colors.primaryMuted,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   rowPressed: { opacity: 0.88 },
   dataCell: {

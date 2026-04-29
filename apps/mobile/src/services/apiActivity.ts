@@ -1,24 +1,48 @@
+let pendingRequests = 0
 let pendingMutations = 0
-const listeners = new Set<(count: number) => void>()
+const requestListeners = new Set<(count: number) => void>()
+const mutationListeners = new Set<(count: number) => void>()
 
-function emit() {
-  for (const l of listeners) l(pendingMutations)
+function emitRequests() {
+  for (const l of requestListeners) l(pendingRequests)
+}
+
+function emitMutations() {
+  for (const l of mutationListeners) l(pendingMutations)
+}
+
+export function beginApiRequest() {
+  pendingRequests += 1
+  emitRequests()
+}
+
+export function endApiRequest() {
+  pendingRequests = Math.max(0, pendingRequests - 1)
+  emitRequests()
 }
 
 export function beginApiMutation() {
   pendingMutations += 1
-  emit()
+  emitMutations()
 }
 
 export function endApiMutation() {
   pendingMutations = Math.max(0, pendingMutations - 1)
-  emit()
+  emitMutations()
+}
+
+export function subscribeApiRequests(listener: (count: number) => void) {
+  requestListeners.add(listener)
+  listener(pendingRequests)
+  return () => {
+    requestListeners.delete(listener)
+  }
 }
 
 export function subscribeApiMutations(listener: (count: number) => void) {
-  listeners.add(listener)
+  mutationListeners.add(listener)
   listener(pendingMutations)
   return () => {
-    listeners.delete(listener)
+    mutationListeners.delete(listener)
   }
 }

@@ -107,7 +107,9 @@ export function ShowcaseComponentsScreen({ navigation }: Props) {
   const [demoPeriodo, setDemoPeriodo] = useState<DatePeriod>({ dtIni: undefined, dtFin: undefined })
   const [demoListSelCount, setDemoListSelCount] = useState(0)
   const [demoLoadingBarTop, setDemoLoadingBarTop] = useState(false)
+  const [demoLoadingBarTopIndeterminate, setDemoLoadingBarTopIndeterminate] = useState(false)
   const [demoLoadingBarLocal, setDemoLoadingBarLocal] = useState(false)
+  const [demoLoadingBarLocalIndeterminate, setDemoLoadingBarLocalIndeterminate] = useState(false)
   const [demoLoadingOverlay, setDemoLoadingOverlay] = useState(false)
   const [demoActionSheetOpen, setDemoActionSheetOpen] = useState(false)
   const [demoActionSheetLog, setDemoActionSheetLog] = useState<string>('—')
@@ -159,7 +161,7 @@ export function ShowcaseComponentsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.screenWrap}>
-        <SnkLoadingBar loading={demoLoadingBarTop} />
+        <SnkLoadingBar loading={demoLoadingBarTop || demoLoadingBarTopIndeterminate} mode={demoLoadingBarTopIndeterminate ? 'indeterminate' : 'determinate'} />
         <ScreenHeader title="Showcase de componentes" onBack={() => navigation.goBack()} />
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.intro}>
@@ -221,16 +223,35 @@ export function ShowcaseComponentsScreen({ navigation }: Props) {
           <Button variant="outline" onPress={fireTopLoadingBar} style={styles.btnMargin}>
             Disparar barra no topo (3,5s)
           </Button>
+          <View style={styles.loadingBtnRow}>
+            <Button variant="outline" onPress={() => setDemoLoadingBarTopIndeterminate(true)}>
+              Topo indeterminado: ligar
+            </Button>
+            <Button variant="outline" onPress={() => setDemoLoadingBarTopIndeterminate(false)}>
+              Desligar
+            </Button>
+          </View>
 
           <View style={styles.loadingDemoBox}>
-            <SnkLoadingBar loading={demoLoadingBarLocal} />
+            <SnkLoadingBar
+              loading={demoLoadingBarLocal || demoLoadingBarLocalIndeterminate}
+              mode={demoLoadingBarLocalIndeterminate ? 'indeterminate' : 'determinate'}
+            />
             <Text style={styles.loadingDemoFakeContent}>Conteúdo fictício por baixo da barra</Text>
           </View>
           <View style={styles.loadingBtnRow}>
             <Button variant="outline" onPress={() => setDemoLoadingBarLocal(true)}>
-              Barra na caixa: ligar
+              Barra na caixa (det.): ligar
             </Button>
             <Button variant="outline" onPress={() => setDemoLoadingBarLocal(false)}>
+              Desligar
+            </Button>
+          </View>
+          <View style={styles.loadingBtnRow}>
+            <Button variant="outline" onPress={() => setDemoLoadingBarLocalIndeterminate(true)}>
+              Barra na caixa (indet.): ligar
+            </Button>
+            <Button variant="outline" onPress={() => setDemoLoadingBarLocalIndeterminate(false)}>
               Desligar
             </Button>
           </View>

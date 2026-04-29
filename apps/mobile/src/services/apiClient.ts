@@ -1,7 +1,7 @@
 import { API_BASE_URL_NORMALIZED } from '../config/env'
 import { extractApiErrorMessage } from '../utils/extractApiErrorMessage'
 import * as authStorage from './authStorage'
-import { beginApiMutation, endApiMutation } from './apiActivity'
+import { beginApiRequest, endApiRequest } from './apiActivity'
 import { postRefreshMobile } from './sessionApi'
 
 let refreshMutex: Promise<boolean> | null = null
@@ -42,9 +42,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     return fetch(url, { ...init, headers: h })
   }
 
-  const method = String(init.method ?? 'GET').toUpperCase()
-  const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method)
-  if (isMutation) beginApiMutation()
+  beginApiRequest()
 
   let token = await authStorage.getAuthToken()
   try {
@@ -65,7 +63,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
     return res
   } finally {
-    if (isMutation) endApiMutation()
+    endApiRequest()
   }
 }
 

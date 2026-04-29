@@ -1,53 +1,54 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { useMemo } from 'react'
 import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, space } from '@wms/theme'
 import { Button } from '../components/ui/Button'
-import { DatePickerField } from '../components/ui/DatePickerField'
 import { Input } from '../components/ui/Input'
 import { ScreenHeader } from '../components/ui/ScreenHeader'
+import { SnkDatePeriodInput } from '../components/ui/SnkDatePeriodInput'
 import { SnkField } from '../components/ui/SnkField'
 import { SnkSuggestionLookup } from '../components/ui/SnkSuggestionLookup'
+import { SnkSwitch } from '../components/ui/SnkSwitch'
+import { SnkTable, type SnkColumnDef } from '../components/ui/SnkTable'
 import {
-  sentimentoLinhaExtrato,
   useGerenciaProdutosExtrato,
 } from '../features/ferramentas/gerenciaExtrato/useGerenciaProdutosExtrato'
 import type { FerramentasStackParamList } from '../navigation/types'
 import type { ExtratoLinha } from '../services/snkGerenciaProdutosApi'
+import { inicioDoDia } from '../utils/dateBr'
 
 type Props = NativeStackScreenProps<FerramentasStackParamList, 'GerenciaExtrato'>
 
-/** Larguras fixas: mesma coluna em todas as linhas (evita desalinhamento com texto longo). */
-const COLS: { key: string; label: string; width: number; lines?: number }[] = [
-  { key: 'DTNEG', label: 'Data', width: 78, lines: 1 },
-  { key: 'TIPMOV', label: 'Mov', width: 34, lines: 1 },
-  { key: 'NUMNOTA', label: 'Nota', width: 52, lines: 1 },
-  { key: 'NUNOTA', label: 'NÚ', width: 56, lines: 1 },
-  { key: 'RAZAOSOCIAL', label: 'Parceiro', width: 120, lines: 2 },
-  { key: 'DESCROPER', label: 'Tipo operação', width: 152, lines: 2 },
-  { key: 'CODLOCAL', label: 'Local', width: 56, lines: 1 },
-  { key: 'QTDNEG', label: 'Qtd', width: 58, lines: 1 },
-  { key: 'SALDO', label: 'Saldo', width: 64, lines: 1 },
-]
-
-const TABELA_LARGURA_TOTAL = COLS.reduce((acc, c) => acc + c.width, 0)
-
-const LINHAS_VISIVEIS = 5
-const ALTURA_MIN_LINHA = 48
-const TABELA_CORPO_MAX_ALTURA = LINHAS_VISIVEIS * ALTURA_MIN_LINHA
-
-function valorCelula(linha: ExtratoLinha, key: string): string {
-  const v = linha[key]
-  return v !== undefined && v !== '' ? v : '—'
+type ExtratoRow = Record<string, unknown> & {
+  id: string
+  DTNEG: string
+  TIPMOV: string
+  NUMNOTA: string
+  NUNOTA: string
+  RAZAOSOCIAL: string
+  DESCROPER: string
+  CODLOCAL: string
+  QTDNEG: string
+  SALDO: string
 }
+
+const EXTRATO_COLUMNS: SnkColumnDef<ExtratoRow>[] = [
+  { field: 'DTNEG', header: 'Data', dataType: 'S', width: 82 },
+  { field: 'TIPMOV', header: 'Mov', dataType: 'S', width: 46 },
+  { field: 'NUMNOTA', header: 'Nota', dataType: 'S', width: 78 },
+  { field: 'NUNOTA', header: 'NÚ', dataType: 'S', width: 88 },
+  { field: 'RAZAOSOCIAL', header: 'Parceiro', dataType: 'S', width: 170 },
+  { field: 'DESCROPER', header: 'Tipo operação', dataType: 'S', width: 180 },
+  { field: 'CODLOCAL', header: 'Local', dataType: 'S', width: 72 },
+  { field: 'QTDNEG', header: 'Qtd', dataType: 'S', width: 86, align: 'right' },
+  { field: 'SALDO', header: 'Saldo', dataType: 'S', width: 92, align: 'right' },
+]
 
 export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
   const {
@@ -84,6 +85,18 @@ export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
     consultar,
   } = useGerenciaProdutosExtrato()
 
+  const extratoRows: ExtratoRow[] = linhas.map((item, index) => ({
+    id: `extrato-${index}`,
+    DTNEG: item.DTNEG || '—',
+    TIPMOV: item.TIPMOV || '—',
+    NUMNOTA: item.NUMNOTA || '—',
+    NUNOTA: item.NUNOTA || '—',
+    RAZAOSOCIAL: item.RAZAOSOCIAL || '—',
+    DESCROPER: item.DESCROPER || '—',
+    CODLOCAL: item.CODLOCAL || '—',
+    QTDNEG: item.QTDNEG || '—',
+    SALDO: item.SALDO || '—',
+  }))
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
@@ -104,29 +117,23 @@ export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Sem datas</Text>
-            <Switch value={naoInformarDatas} onValueChange={setNaoInformarDatas} />
+            <SnkSwitch
+              value={naoInformarDatas ? 'S' : 'N'}
+              onChangeValue={(v) => setNaoInformarDatas(v === 'S')}
+              accessibilityLabel="Sem datas"
+            />
           </View>
 
-          <View style={styles.row2}>
-            <View style={styles.half}>
-              <DatePickerField
-                label="Início"
-                value={dateIni}
-                onChange={setDateIni}
-                maximumDate={dateFin}
-                disabled={naoInformarDatas}
-              />
-            </View>
-            <View style={styles.half}>
-              <DatePickerField
-                label="Fim"
-                value={dateFin}
-                onChange={setDateFin}
-                minimumDate={dateIni}
-                disabled={naoInformarDatas}
-              />
-            </View>
-          </View>
+          <SnkField label="Período">
+            <SnkDatePeriodInput
+              value={{ dtIni: dateIni, dtFin: dateFin }}
+              onChangeValue={(period) => {
+                if (period.dtIni) setDateIni(inicioDoDia(period.dtIni))
+                if (period.dtFin) setDateFin(period.dtFin)
+              }}
+              enabled={!naoInformarDatas}
+            />
+          </SnkField>
 
           <Text style={styles.label}>Controle</Text>
           <Input value={controle} onChangeText={setControle} style={styles.field} />
@@ -160,11 +167,19 @@ export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Saldo</Text>
-            <Switch value={visualizarSaldo} onValueChange={setVisualizarSaldo} />
+            <SnkSwitch
+              value={visualizarSaldo ? 'S' : 'N'}
+              onChangeValue={(v) => setVisualizarSaldo(v === 'S')}
+              accessibilityLabel="Saldo"
+            />
           </View>
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Qtd ±</Text>
-            <Switch value={vlrNegPos} onValueChange={setVlrNegPos} />
+            <SnkSwitch
+              value={vlrNegPos ? 'S' : 'N'}
+              onChangeValue={(v) => setVlrNegPos(v === 'S')}
+              accessibilityLabel="Quantidade mais ou menos"
+            />
           </View>
 
           <Button variant="default" onPress={consultar} disabled={loading} style={styles.btn}>
@@ -181,59 +196,14 @@ export function GerenciaProdutosExtratoScreen({ navigation }: Props) {
 
           {linhas.length > 0 && !loading ? (
             <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator
-                style={styles.tableScroll}
-                nestedScrollEnabled
-              >
-                <View style={[styles.tableWide, { width: TABELA_LARGURA_TOTAL }]}>
-                  <View style={styles.trHeadRow}>
-                    {COLS.map((c) => (
-                      <View key={c.key} style={[styles.cellShell, { width: c.width }]}>
-                        <Text style={styles.th} numberOfLines={2} ellipsizeMode="tail">
-                          {c.label}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                  <ScrollView
-                    style={styles.tableBodyScroll}
-                    contentContainerStyle={styles.tableBodyContent}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator
-                  >
-                    {linhas.map((item, index) => {
-                      const s = sentimentoLinhaExtrato(item)
-                      const rowStyle =
-                        s === 'entrada'
-                          ? styles.trEntrada
-                          : s === 'saida'
-                            ? styles.trSaida
-                            : index % 2 === 1
-                              ? styles.trNeutroAlt
-                              : styles.trNeutro
-                      const textStyle =
-                        s === 'entrada' ? styles.tdEntrada : s === 'saida' ? styles.tdSaida : styles.td
-                      return (
-                        <View key={`extrato-${index}`} style={[styles.tr, rowStyle]}>
-                          {COLS.map((c) => (
-                            <View key={c.key} style={[styles.cellShell, { width: c.width }]}>
-                              <Text
-                                style={[styles.tdBase, textStyle]}
-                                numberOfLines={c.lines ?? 1}
-                                ellipsizeMode="tail"
-                              >
-                                {valorCelula(item, c.key)}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )
-                    })}
-                  </ScrollView>
-                </View>
-              </ScrollView>
+              <SnkTable<ExtratoRow>
+                embedded
+                columns={EXTRATO_COLUMNS}
+                data={extratoRows}
+                keyExtractor={(row) => row.id}
+                minWidth={894}
+                emptyText="Sem dados."
+              />
 
               <View style={styles.footerSaldo}>
                 <Text style={styles.footerLabel}>Saldo atual</Text>
@@ -254,8 +224,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 4, marginTop: space.sm },
   field: { backgroundColor: colors.surface },
   narrow: { maxWidth: 120 },
-  row2: { flexDirection: 'row', gap: space.md },
-  half: { flex: 1 },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -266,53 +234,7 @@ const styles = StyleSheet.create({
   switchLabel: { fontSize: 14, color: colors.text, flex: 1, paddingRight: space.md },
   btn: { marginTop: space.lg },
   loadingBox: { paddingVertical: space.lg, alignItems: 'center' },
-  tableScroll: { marginTop: space.md, paddingHorizontal: space.md },
-  tableWide: {
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: colors.border,
-    borderTopWidth: 1,
-    backgroundColor: colors.surface,
-  },
-  trHeadRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 6,
-  },
-  tableBodyScroll: {
-    maxHeight: TABELA_CORPO_MAX_ALTURA,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tableBodyContent: {
-    flexGrow: 0,
-  },
-  cellShell: {
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
   empty: { fontSize: 14, color: colors.textMuted, marginTop: space.md },
-  tr: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    minHeight: ALTURA_MIN_LINHA,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    paddingVertical: 4,
-  },
-  trEntrada: { backgroundColor: colors.primaryMuted },
-  trSaida: { backgroundColor: colors.dangerMuted },
-  trNeutro: { backgroundColor: colors.surface },
-  trNeutroAlt: { backgroundColor: colors.background },
-  th: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
-  tdBase: { fontSize: 12 },
-  td: { color: colors.text },
-  tdEntrada: { color: colors.primaryDark, fontWeight: '600' },
-  tdSaida: { color: colors.danger, fontWeight: '600' },
   footerSaldo: {
     marginTop: space.md,
     paddingVertical: space.md,

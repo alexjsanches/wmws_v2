@@ -8,6 +8,7 @@ def uploadKeyAlias = findProperty('ANDROID_UPLOAD_KEY_ALIAS') ?: System.getenv('
 def uploadStorePassword = findProperty('ANDROID_UPLOAD_STORE_PASSWORD') ?: System.getenv('ANDROID_UPLOAD_STORE_PASSWORD')
 def uploadKeyPassword = findProperty('ANDROID_UPLOAD_KEY_PASSWORD') ?: System.getenv('ANDROID_UPLOAD_KEY_PASSWORD')
 def hasReleaseSigning = uploadStoreFile && uploadKeyAlias && uploadStorePassword && uploadKeyPassword
+def isReleaseBuildRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -123,7 +124,8 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            if (!hasReleaseSigning) {
+            // Só exige credenciais quando a execução realmente inclui tasks de release.
+            if (!hasReleaseSigning && isReleaseBuildRequested) {
                 throw new GradleException(
                     'Release signing não configurado. Defina ANDROID_UPLOAD_STORE_FILE, ANDROID_UPLOAD_KEY_ALIAS, ANDROID_UPLOAD_STORE_PASSWORD e ANDROID_UPLOAD_KEY_PASSWORD.'
                 )
@@ -195,3 +197,9 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
+
+// Workaround (Windows + AGP/Gradle): em debug, desabilita o strip de símbolos nativos
+// para evitar falha intermitente com arquivos temporários (*.temp-stream-*).
+tasks.matching { it.name == "stripDebugDebugSymbols" }.configureEach {
+    enabled = false
+}
